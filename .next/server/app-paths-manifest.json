@@ -1,7 +1,0 @@
-{
-  "/properties/page": "app/properties/page.js",
-  "/page": "app/page.js",
-  "/contact/page": "app/contact/page.js",
-  "/dashboard/page": "app/dashboard/page.js",
-  "/properties/[id]/page": "app/properties/[id]/page.js"
-}
