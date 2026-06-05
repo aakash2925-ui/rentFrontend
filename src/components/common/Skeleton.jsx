@@ -1,7 +1,7 @@
 export function SkeletonBlock({ className = "" }) {
   return <div className={`animate-pulse rounded-lg bg-stone-200 dark:bg-stone-800 ${className}`} />;
 }
-
+console.log("SkeletonBlock component defined");
 export function PropertyGridSkeleton() {
   return (
     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
