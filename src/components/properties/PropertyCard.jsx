@@ -1,0 +1,58 @@
+"use client";
+
+import Link from "next/link";
+import { Boxes, CalendarClock, ChevronLeft, ChevronRight, Gauge, MapPin } from "lucide-react";
+import { useState } from "react";
+import { uploadUrl } from "@/lib/api";
+import { minRentalDaysOf, quantityOf, specValueOf } from "@/lib/itemFields";
+import WishlistButton from "./WishlistButton";
+
+export default function PropertyCard({ property }) {
+  const [activeImage, setActiveImage] = useState(0);
+  const images = property.images?.length ? property.images : [null];
+  const quantity = quantityOf(property);
+  const badge = !property.isAvailable || quantity === 0 ? "Out of stock" : quantity <= 2 ? "Low stock" : "Available";
+  const badgeClass = badge === "Available" ? "bg-green-50 text-green-700" : badge === "Low stock" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700";
+
+  const moveImage = (event, direction) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setActiveImage((current) => (current + direction + images.length) % images.length);
+  };
+
+  return (
+    <article className="group overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-soft dark:border-stone-800 dark:bg-stone-900">
+      <div className="relative aspect-[4/3] overflow-hidden bg-stone-100 dark:bg-stone-800">
+        <Link href={`/properties/${property._id}`}>
+          <img src={uploadUrl(images[activeImage])} alt={property.title} className="h-full w-full object-cover transition group-hover:scale-105" />
+        </Link>
+        <span className={`absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-black ${badgeClass}`}>{badge}</span>
+        <div className="absolute right-3 top-3">
+          <WishlistButton propertyId={property._id} />
+        </div>
+        {images.length > 1 && (
+          <>
+            <button className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-ink shadow-sm" onClick={(event) => moveImage(event, -1)} aria-label="Previous image">
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-ink shadow-sm" onClick={(event) => moveImage(event, 1)} aria-label="Next image">
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </>
+        )}
+      </div>
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <Link href={`/properties/${property._id}`} className="line-clamp-2 text-base font-bold hover:text-meadow">{property.title}</Link>
+          <p className="whitespace-nowrap text-sm font-black text-meadow">₹{Number(property.rent).toLocaleString()}</p>
+        </div>
+        <p className="mt-2 flex items-center gap-1 text-sm text-stone-500 dark:text-stone-400"><MapPin className="h-4 w-4" /> {property.city}, {property.state}</p>
+        <div className="mt-4 grid grid-cols-3 gap-2 text-xs text-stone-600 dark:text-stone-300">
+          <span className="flex items-center gap-1"><Boxes className="h-4 w-4" /> Qty {quantity}</span>
+          <span className="flex items-center gap-1"><CalendarClock className="h-4 w-4" /> {minRentalDaysOf(property)}+ days</span>
+          <span className="flex items-center gap-1"><Gauge className="h-4 w-4" /> {specValueOf(property)} spec</span>
+        </div>
+      </div>
+    </article>
+  );
+}
