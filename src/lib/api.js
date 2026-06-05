@@ -16,7 +16,7 @@ api.interceptors.request.use((config) => {
 
 export const uploadUrl = (path) => {
   if (!path) return "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1200&q=80";
-  if (path.startsWith("http")) return path;
+  if (path.startsWith("http") || path.startsWith("data:")) return path;
   return `${process.env.NEXT_PUBLIC_UPLOADS_URL || "http://localhost:5000"}${path}`;
 };
 
