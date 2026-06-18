@@ -4,7 +4,7 @@ import { SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 
-export default function PropertyFilterSidebar({ filters, setFilters, applyFilters }) {
+export default function PropertyFilterSidebar({ filters, setFilters, applyFilters, clearFilters }) {
   const [itemTypes, setItemTypes] = useState([]);
   const update = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
 
@@ -37,7 +37,10 @@ export default function PropertyFilterSidebar({ filters, setFilters, applyFilter
           <option value="rent-high">Rent: High to low</option>
           <option value="bedrooms">Highest quantity</option>
         </select>
-        <button className="btn-primary w-full" onClick={applyFilters}>Apply filters</button>
+        <div className="grid gap-2">
+          <button className="btn-primary w-full" onClick={applyFilters}>Apply filters</button>
+          <button className="btn-secondary w-full" type="button" onClick={clearFilters}>Clear filters</button>
+        </div>
       </div>
     </aside>
   );

@@ -6,6 +6,7 @@ import { useState } from "react";
 import { uploadUrl } from "@/lib/api";
 import { minRentalDaysOf, quantityOf, specValueOf } from "@/lib/itemFields";
 import WishlistButton from "./WishlistButton";
+import AddToCartButton from "@/components/cart/AddToCartButton";
 
 export default function PropertyCard({ property }) {
   const [activeImage, setActiveImage] = useState(0);
@@ -52,6 +53,7 @@ export default function PropertyCard({ property }) {
           <span className="flex items-center gap-1"><CalendarClock className="h-4 w-4" /> {minRentalDaysOf(property)}+ days</span>
           <span className="flex items-center gap-1"><Gauge className="h-4 w-4" /> {specValueOf(property)} spec</span>
         </div>
+        <AddToCartButton property={property} compact className="mt-4 w-full" />
       </div>
     </article>
   );

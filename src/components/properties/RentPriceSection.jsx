@@ -1,4 +1,5 @@
 import { quantityOf } from "@/lib/itemFields";
+import AddToCartButton from "@/components/cart/AddToCartButton";
 
 export default function RentPriceSection({ property }) {
   return (
@@ -9,6 +10,7 @@ export default function RentPriceSection({ property }) {
         <div className="flex justify-between"><span>Refundable deposit</span><strong>₹{Number(property.deposit).toLocaleString()}</strong></div>
         <div className="mt-2 flex justify-between"><span>Available quantity</span><strong>{quantityOf(property)}</strong></div>
       </div>
+      <AddToCartButton property={property} className="mt-4 w-full" />
     </div>
   );
 }

@@ -32,9 +32,14 @@ export default function PropertiesClient() {
     router.push(`/properties?${params.toString()}`);
   };
 
+  const clearFilters = () => {
+    setFilters({});
+    router.push("/properties");
+  };
+
   return (
     <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 lg:grid-cols-[280px_1fr]">
-      <PropertyFilterSidebar filters={filters} setFilters={setFilters} applyFilters={applyFilters} />
+      <PropertyFilterSidebar filters={filters} setFilters={setFilters} applyFilters={applyFilters} clearFilters={clearFilters} />
       <section>
         <div className="mb-5">
           <h1 className="text-3xl font-black">Rental items</h1>

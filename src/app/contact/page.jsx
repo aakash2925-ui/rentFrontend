@@ -1,8 +1,8 @@
 import { Clock3, Headphones, Mail, MapPin, MessageCircle, Phone, ShieldCheck } from "lucide-react";
 
 const contactCards = [
-  { icon: Phone, label: "Call support", value: "+91 98765 43210", detail: "10 AM - 7 PM" },
-  { icon: Mail, label: "Email", value: "hello@gearnest.local", detail: "Replies within a day" },
+  { icon: Phone, label: "Call support", value: "8796318284", detail: "10 AM - 7 PM" },
+  { icon: Mail, label: "Email", value: "Zasoota.in@gmail.com", detail: "Replies within a day" },
   { icon: MapPin, label: "Pickup hub", value: "Bengaluru, Karnataka", detail: "Admin-managed inventory" }
 ];
 
@@ -20,7 +20,7 @@ export default function ContactPage() {
           <div>
             <p className="inline-flex items-center gap-2 rounded-full bg-meadow/10 px-3 py-1 text-sm font-bold uppercase tracking-wide text-meadow dark:bg-meadow/15">
               <Headphones className="h-4 w-4" />
-              Contact GearNest
+              Contact Zasoota
             </p>
             <h1 className="mt-4 max-w-xl text-4xl font-black leading-tight text-ink dark:text-stone-50 md:text-5xl">
               Need help renting gear?

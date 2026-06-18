@@ -2,12 +2,13 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { ToastProvider } from "@/context/ToastContext";
+import { CartProvider } from "@/context/CartContext";
 import Footer from "@/components/layout/Footer";
 import Navbar from "@/components/layout/Navbar";
 
 export const metadata = {
-  title: "NestAway Rentals",
-  description: "Modern equipment rental marketplace"
+  title: "Zasoota Rentals",
+  description: "Rent projectors, speakers, cameras, luggage, fashion and more."
 };
 
 export default function RootLayout({ children }) {
@@ -17,9 +18,11 @@ export default function RootLayout({ children }) {
         <ThemeProvider>
           <ToastProvider>
             <AuthProvider>
-              <Navbar />
-              <main className="min-h-screen">{children}</main>
-              <Footer />
+              <CartProvider>
+                <Navbar />
+                <main className="min-h-screen">{children}</main>
+                <Footer />
+              </CartProvider>
             </AuthProvider>
           </ToastProvider>
         </ThemeProvider>
