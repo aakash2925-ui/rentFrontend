@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Boxes, ClipboardList, History, LayoutDashboard, Package, PackagePlus, Tags, Trash2, Users } from "lucide-react";
-import api from "@/lib/api";
+import { Boxes, ClipboardList, History, ImagePlus, LayoutDashboard, Package, PackagePlus, Pencil, Save, Tags, Trash2, Users, X } from "lucide-react";
+import api, { uploadUrl } from "@/lib/api";
 import { conditionOf, itemTypeOf, quantityOf } from "@/lib/itemFields";
 import ErrorMessage from "@/components/common/ErrorMessage";
 import EmptyState from "@/components/common/EmptyState";
@@ -24,11 +24,19 @@ const adminTasks = [
   { id: "users", label: "Users", icon: Users }
 ];
 
+const defaultItemTypeImage = "https://images.unsplash.com/photo-1520549233664-03f65c1d1327?auto=format&fit=crop&w=900&q=80";
+
 export default function AdminDashboardPage() {
   const [data, setData] = useState({ stats: null, users: [], properties: [], inquiries: [], bookings: [], logs: [], itemTypes: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [typeName, setTypeName] = useState("");
+  const [typeImage, setTypeImage] = useState(null);
+  const [typePreview, setTypePreview] = useState("");
+  const [editingType, setEditingType] = useState(null);
+  const [editTypeName, setEditTypeName] = useState("");
+  const [editTypeImage, setEditTypeImage] = useState(null);
+  const [editTypePreview, setEditTypePreview] = useState("");
   const [activeTask, setActiveTask] = useState("overview");
   const [filters, setFilters] = useState({ search: "", status: "", type: "", role: "", dateFrom: "", dateTo: "" });
   const { showToast } = useToast();
@@ -63,13 +71,62 @@ export default function AdminDashboardPage() {
     if (!typeName.trim()) return;
 
     try {
-      const { data: response } = await api.post("/item-types", { name: typeName.trim() });
+      const formData = new FormData();
+      formData.append("name", typeName.trim());
+      if (typeImage) formData.append("image", typeImage);
+      const { data: response } = await api.post("/item-types", formData);
       setData((current) => ({ ...current, itemTypes: [...current.itemTypes, response.itemType].sort((a, b) => a.name.localeCompare(b.name)) }));
       setTypeName("");
+      setTypeImage(null);
+      setTypePreview("");
       showToast("Item type added");
     } catch (err) {
       showToast(err.response?.data?.message || "Unable to add item type", "error");
     }
+  };
+
+  const startEditItemType = (item) => {
+    setEditingType(item);
+    setEditTypeName(item.name);
+    setEditTypeImage(null);
+    setEditTypePreview(item.image ? uploadUrl(item.image) : "");
+  };
+
+  const cancelEditItemType = () => {
+    setEditingType(null);
+    setEditTypeName("");
+    setEditTypeImage(null);
+    setEditTypePreview("");
+  };
+
+  const updateItemType = async (event) => {
+    event.preventDefault();
+    if (!editingType || !editTypeName.trim()) return;
+
+    try {
+      const formData = new FormData();
+      formData.append("name", editTypeName.trim());
+      if (editTypeImage) formData.append("image", editTypeImage);
+      const { data: response } = await api.put(`/item-types/${editingType._id}`, formData);
+      setData((current) => ({
+        ...current,
+        itemTypes: current.itemTypes.map((item) => item._id === response.itemType._id ? response.itemType : item).sort((a, b) => a.name.localeCompare(b.name))
+      }));
+      cancelEditItemType();
+      showToast("Item type updated");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to update item type", "error");
+    }
+  };
+
+  const selectTypeImage = (file) => {
+    setTypeImage(file || null);
+    setTypePreview(file ? URL.createObjectURL(file) : "");
+  };
+
+  const selectEditTypeImage = (file) => {
+    setEditTypeImage(file || null);
+    setEditTypePreview(file ? URL.createObjectURL(file) : (editingType?.image ? uploadUrl(editingType.image) : ""));
   };
 
   const removeItemType = async (id) => {
@@ -202,8 +259,18 @@ export default function AdminDashboardPage() {
                   properties={data.properties}
                   typeName={typeName}
                   setTypeName={setTypeName}
+                  typePreview={typePreview}
+                  selectTypeImage={selectTypeImage}
                   addItemType={addItemType}
                   removeItemType={removeItemType}
+                  editingType={editingType}
+                  editTypeName={editTypeName}
+                  setEditTypeName={setEditTypeName}
+                  editTypePreview={editTypePreview}
+                  selectEditTypeImage={selectEditTypeImage}
+                  startEditItemType={startEditItemType}
+                  cancelEditItemType={cancelEditItemType}
+                  updateItemType={updateItemType}
                 />
               )}
               {activeTask === "items" && <ItemsPanel items={data.properties} filters={filters} setFilters={setFilters} deleteItem={deleteItem} exportCsv={exportCsv} />}
@@ -297,7 +364,24 @@ function BarRow({ label, value, max }) {
   );
 }
 
-function ItemTypesPanel({ itemTypes, properties, typeName, setTypeName, addItemType, removeItemType }) {
+function ItemTypesPanel({
+  itemTypes,
+  properties,
+  typeName,
+  setTypeName,
+  typePreview,
+  selectTypeImage,
+  addItemType,
+  removeItemType,
+  editingType,
+  editTypeName,
+  setEditTypeName,
+  editTypePreview,
+  selectEditTypeImage,
+  startEditItemType,
+  cancelEditItemType,
+  updateItemType
+}) {
   const countByType = properties.reduce((counts, item) => {
     const type = itemTypeOf(item);
     counts[type] = (counts[type] || 0) + 1;
@@ -305,36 +389,80 @@ function ItemTypesPanel({ itemTypes, properties, typeName, setTypeName, addItemT
   }, {});
 
   return (
-    <section className="rounded-lg border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+    <section className="rounded-2xl border border-violet-100 bg-white/90 p-5 shadow-soft dark:border-violet-900/70 dark:bg-white/10">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
-          <h2 className="text-lg font-black">Item types</h2>
-          <p className="mt-1 text-sm text-stone-500">Add categories used in the item form and filters.</p>
+          <h2 className="text-xl font-black text-ink dark:text-white">Item types</h2>
+          <p className="mt-1 text-sm text-violet-950/60 dark:text-violet-100/65">Add categories with images for home page browsing, filters, and item forms.</p>
         </div>
-        <form onSubmit={addItemType} className="flex flex-col gap-2 sm:flex-row">
-          <input className="field min-w-52" placeholder="Projector, speaker, camera" value={typeName} onChange={(e) => setTypeName(e.target.value)} />
-          <button className="btn-primary">Add</button>
-        </form>
       </div>
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+
+      <form onSubmit={addItemType} className="mt-5 grid gap-4 rounded-2xl border border-violet-100 bg-mist/70 p-4 dark:border-violet-900/70 dark:bg-white/10 lg:grid-cols-[140px_1fr_auto] lg:items-center">
+        <label className="group relative grid aspect-[4/3] cursor-pointer place-items-center overflow-hidden rounded-2xl border border-dashed border-violet-300 bg-white/80 text-center shadow-sm dark:border-violet-800 dark:bg-white/10">
+          {typePreview ? (
+            <img src={typePreview} alt="Item type preview" className="h-full w-full object-cover" />
+          ) : (
+            <span className="grid place-items-center gap-2 text-xs font-black uppercase tracking-wide text-meadow">
+              <ImagePlus className="h-7 w-7" />
+              Upload photo
+            </span>
+          )}
+          <input className="sr-only" type="file" accept="image/*" onChange={(event) => selectTypeImage(event.target.files?.[0])} />
+        </label>
+        <div>
+          <input className="field" placeholder="Projector, speaker, camera" value={typeName} onChange={(e) => setTypeName(e.target.value)} />
+          <p className="mt-2 text-xs text-violet-950/55 dark:text-violet-100/60">Preview the image here before saving. If no image is uploaded, the homepage uses a default category photo.</p>
+        </div>
+        <button className="btn-primary min-h-11 lg:min-w-28">Add type</button>
+      </form>
+
+      {editingType && (
+        <form onSubmit={updateItemType} className="mt-5 grid gap-4 rounded-2xl border border-violet-200 bg-white p-4 shadow-sm dark:border-violet-800 dark:bg-white/10 lg:grid-cols-[140px_1fr_auto] lg:items-center">
+          <label className="group relative grid aspect-[4/3] cursor-pointer place-items-center overflow-hidden rounded-2xl border border-dashed border-violet-300 bg-mist text-center dark:border-violet-800 dark:bg-violet-950/40">
+            {editTypePreview ? (
+              <img src={editTypePreview} alt={`${editTypeName} preview`} className="h-full w-full object-cover" />
+            ) : (
+              <span className="grid place-items-center gap-2 text-xs font-black uppercase tracking-wide text-meadow">
+                <ImagePlus className="h-7 w-7" />
+                Choose photo
+              </span>
+            )}
+            <input className="sr-only" type="file" accept="image/*" onChange={(event) => selectEditTypeImage(event.target.files?.[0])} />
+          </label>
+          <div>
+            <p className="mb-2 text-xs font-black uppercase tracking-wide text-meadow">Editing item type</p>
+            <input className="field" value={editTypeName} onChange={(event) => setEditTypeName(event.target.value)} />
+          </div>
+          <div className="flex gap-2 lg:flex-col">
+            <button className="btn-primary flex-1" type="submit"><Save className="h-4 w-4" /> Save</button>
+            <button className="btn-secondary flex-1" type="button" onClick={cancelEditItemType}><X className="h-4 w-4" /> Cancel</button>
+          </div>
+        </form>
+      )}
+
+      <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {itemTypes.length ? itemTypes.map((item) => (
-          <article key={item._id} className="rounded-lg border border-stone-200 bg-mist p-4 dark:border-stone-800 dark:bg-stone-800">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-meadow dark:bg-stone-900">
-                  <Package className="h-5 w-5" />
-                </span>
-                <div>
-                  <h3 className="font-black">{item.name}</h3>
-                  <p className="text-sm text-stone-500">{countByType[item.name] || 0} listed items</p>
-                </div>
+          <article key={item._id} className="overflow-hidden rounded-2xl border border-violet-100 bg-mist/80 shadow-sm transition hover:-translate-y-1 hover:shadow-soft dark:border-violet-900/70 dark:bg-white/10">
+            <div className="aspect-[16/10] bg-violet-100 dark:bg-violet-950/50">
+              <img src={item.image ? uploadUrl(item.image) : defaultItemTypeImage} alt={item.name} className="h-full w-full object-cover" />
+            </div>
+            <div className="flex items-start justify-between gap-3 p-4">
+              <div>
+                <h3 className="font-black text-ink dark:text-white">{item.name}</h3>
+                <p className="text-sm text-violet-950/60 dark:text-violet-100/65">{countByType[item.name] || 0} listed items</p>
+                <p className="mt-2 text-xs font-semibold text-violet-950/45 dark:text-violet-100/45">{item.image ? "Custom category photo" : "Using fallback photo on homepage"}</p>
               </div>
-              <button className="rounded-lg p-2 text-stone-500 hover:bg-white hover:text-red-600 dark:text-stone-400 dark:hover:bg-stone-900 dark:hover:text-red-400" onClick={() => removeItemType(item._id)} aria-label={`Remove ${item.name}`}>
-                <Trash2 className="h-4 w-4" />
-              </button>
+              <div className="flex shrink-0 gap-1">
+                <button className="rounded-lg p-2 text-stone-500 hover:bg-white hover:text-meadow dark:text-stone-400 dark:hover:bg-stone-900 dark:hover:text-violet-200" onClick={() => startEditItemType(item)} aria-label={`Edit ${item.name}`} type="button">
+                  <Pencil className="h-4 w-4" />
+                </button>
+                <button className="rounded-lg p-2 text-stone-500 hover:bg-white hover:text-red-600 dark:text-stone-400 dark:hover:bg-stone-900 dark:hover:text-red-400" onClick={() => removeItemType(item._id)} aria-label={`Remove ${item.name}`} type="button">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </article>
-        )) : <EmptyState title="No item types yet" message="Add categories like Projector, Speaker, Camera, and Light before publishing inventory." />}
+        )) : <EmptyState title="No item types yet" message="Add categories like Projector, Speaker, Camera, and Luggage before publishing inventory." />}
       </div>
     </section>
   );

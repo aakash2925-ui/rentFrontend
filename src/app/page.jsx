@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Camera, IndianRupee, Luggage, MessageCircle, MonitorUp, RefreshCw, ShieldCheck, Shirt, Speaker, Star, Tags, Truck, WalletCards } from "lucide-react";
 import HeroSection from "@/components/home/HeroSection";
-import api from "@/lib/api";
+import api, { uploadUrl } from "@/lib/api";
 import { itemTypeOf } from "@/lib/itemFields";
 
 const categoryIcons = {
@@ -42,6 +42,20 @@ const featuredCategories = [
     image: "https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80"
   }
 ];
+
+const fallbackCategoryImages = {
+  projector: "https://images.unsplash.com/photo-1601944177325-f8867652837f?auto=format&fit=crop&w=900&q=80",
+  speaker: "https://images.unsplash.com/photo-1545454675-3531b543be5d?auto=format&fit=crop&w=900&q=80",
+  camera: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=900&q=80",
+  luggage: "https://images.unsplash.com/photo-1553531888-a5f7d704a33f?auto=format&fit=crop&w=900&q=80",
+  fashion: "https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80",
+  default: "https://images.unsplash.com/photo-1520549233664-03f65c1d1327?auto=format&fit=crop&w=900&q=80"
+};
+
+const categoryImageFor = (type) => {
+  const fallback = fallbackCategoryImages[type.name?.toLowerCase()] || fallbackCategoryImages.default;
+  return type.image ? uploadUrl(type.image) : fallback;
+};
 
 const experienceSlides = [
   {
@@ -113,11 +127,9 @@ export default function HomePage() {
       });
   }, []);
 
-  const featuredNames = new Set(featuredCategories.map((type) => type.name.toLowerCase()));
-  const categories = [
-    ...featuredCategories,
-    ...itemTypes.filter((type) => !featuredNames.has(type.name.toLowerCase())).map((type) => ({ name: type.name }))
-  ];
+  const categories = itemTypes.length
+    ? itemTypes.map((type) => ({ ...type, image: categoryImageFor(type) }))
+    : featuredCategories;
 
   return (
     <>
@@ -144,7 +156,7 @@ export default function HomePage() {
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {categories.slice(0, 8).map((type) => {
             const Icon = categoryIcons[type.name.toLowerCase()] || Tags;
-            const cardImages = type.images || (type.image ? [type.image] : []);
+            const cardImages = type.images || (type.image ? [type.image] : [fallbackCategoryImages.default]);
             return (
               <Link
                 key={type.name}
