@@ -18,7 +18,7 @@ export default function PropertyFilterSidebar({ filters, setFilters, applyFilter
     <aside className="rounded-lg border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
       <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-wide"><SlidersHorizontal className="h-4 w-4" /> Filters</h2>
       <div className="mt-4 space-y-3">
-        <input className="field" placeholder="City" value={filters.city || ""} onChange={(e) => update("city", e.target.value)} />
+        <input className="field" placeholder="Pincode" value={filters.city || ""} onChange={(e) => update("city", e.target.value)} />
         <div className="grid grid-cols-2 gap-2">
           <input className="field" type="number" placeholder="Min daily rent" value={filters.minRent || ""} onChange={(e) => update("minRent", e.target.value)} />
           <input className="field" type="number" placeholder="Max daily rent" value={filters.maxRent || ""} onChange={(e) => update("maxRent", e.target.value)} />

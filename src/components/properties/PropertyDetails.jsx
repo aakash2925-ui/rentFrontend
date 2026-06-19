@@ -1,20 +1,28 @@
-import { Boxes, CalendarClock, Gauge, Package, ShieldCheck } from "lucide-react";
-import { conditionOf, itemTypeOf, minRentalDaysOf, quantityOf, specValueOf } from "@/lib/itemFields";
+import { Boxes, CalendarClock, MapPin, Package, Percent, ShieldCheck, Star } from "lucide-react";
+import { conditionOf, itemTypeOf, minRentalDaysOf, quantityOf } from "@/lib/itemFields";
 
 export default function PropertyDetails({ property }) {
   const facts = [
     { icon: Boxes, label: `${quantityOf(property)} Available` },
     { icon: CalendarClock, label: `${minRentalDaysOf(property)}+ rental days` },
-    { icon: Gauge, label: `${specValueOf(property)} spec value` },
     { icon: ShieldCheck, label: `${conditionOf(property)} condition` },
     { icon: Package, label: itemTypeOf(property) }
   ];
 
   return (
     <section className="space-y-5">
-      <div>
-        <h1 className="text-3xl font-black text-ink dark:text-stone-50">{property.title}</h1>
-        <p className="mt-2 text-stone-600 dark:text-stone-300">Doorstep delivery from {property.city}, {property.state} {property.pincode}</p>
+      <div className="rounded-2xl border border-violet-100 bg-white/90 p-6 shadow-soft dark:border-violet-900/70 dark:bg-white/10">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h1 className="text-3xl font-black leading-tight text-ink dark:text-stone-50 md:text-4xl">{property.title}</h1>
+            <p className="mt-3 flex items-center gap-2 text-stone-600 dark:text-stone-300"><MapPin className="h-4 w-4 text-meadow" /> Doorstep delivery available for pincode {property.pincode}</p>
+          </div>
+          <div className="rounded-2xl bg-mist px-4 py-3 text-sm font-black text-ink dark:bg-white/10 dark:text-white">
+            <span className="flex items-center gap-1 text-clay"><Star className="h-4 w-4 fill-current" /> Ratings</span>
+            <p className="mt-1 text-xs font-semibold text-violet-950/60 dark:text-violet-100/65">See renter reviews below</p>
+          </div>
+        </div>
+        {property.offer && <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-meadow/10 px-3 py-1 text-sm font-black text-meadow"><Percent className="h-4 w-4" /> {property.offer}</p>}
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {facts.map(({ icon: Icon, label }) => (

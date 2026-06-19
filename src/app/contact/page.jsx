@@ -13,7 +13,7 @@ const contactCards = [
 ];
 
 const helpTopics = [
-  "Rental request and booking status",
+  "Booking request and booking status",
   "Pickup, delivery, and distance charges",
   "Inventory availability and deposits"
 ];
@@ -105,7 +105,7 @@ export default function ContactPage() {
             <input className="field" placeholder="Phone" value={form.phone} onChange={(event) => updateForm("phone", event.target.value)} />
             <select className="field" value={form.topic} onChange={(event) => updateForm("topic", event.target.value)}>
               <option value="" disabled>Support topic</option>
-              <option value="Rental request">Rental request</option>
+              <option value="Booking request">Booking request</option>
               <option value="Delivery charges">Delivery charges</option>
               <option value="Booking status">Booking status</option>
               <option value="Admin account">Admin account</option>

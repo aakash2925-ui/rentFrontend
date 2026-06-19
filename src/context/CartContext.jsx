@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { itemTypeOf, minRentalDaysOf, quantityOf, specValueOf } from "@/lib/itemFields";
+import { itemTypeOf, minRentalDaysOf, quantityOf } from "@/lib/itemFields";
 
 const CartContext = createContext(null);
 const CART_KEY = "zasoota_cart";
@@ -12,12 +12,11 @@ const cartSnapshot = (property) => ({
   rent: Number(property.rent || 0),
   deposit: Number(property.deposit || 0),
   images: property.images || [],
-  city: property.city,
-  state: property.state,
+  pincode: property.pincode,
   itemType: itemTypeOf(property),
   quantityAvailable: quantityOf(property),
   minRentalDays: minRentalDaysOf(property),
-  specValue: specValueOf(property),
+  offer: property.offer || "",
   isAvailable: property.isAvailable !== false
 });
 

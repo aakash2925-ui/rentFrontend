@@ -71,22 +71,25 @@ const howItWorks = [
   ["Return", "Pickup from your doorstep"]
 ];
 
-const reviews = [
-  ["Riya Sharma", "The projector and speaker combo made our movie night feel premium without buying anything."],
-  ["Aman Verma", "Simple browsing, clear pricing, and the delivery coordination was smooth."],
-  ["Neha Gupta", "Great option for parties and short-term needs. Rent, use, return is exactly what we needed."]
-];
-
 export default function HomePage() {
   const [itemTypes, setItemTypes] = useState([]);
+  const [customerReviews, setCustomerReviews] = useState([]);
 
   useEffect(() => {
-    api.get("/item-types")
-      .then((itemTypesResponse) => {
-        setItemTypes(itemTypesResponse.data.itemTypes);
+    Promise.allSettled([
+      api.get("/item-types"),
+      api.get("/reviews/latest?limit=6")
+    ])
+      .then(([itemTypesResponse, reviewsResponse]) => {
+        if (itemTypesResponse.status === "fulfilled") setItemTypes(itemTypesResponse.value.data.itemTypes);
+        else setItemTypes([]);
+
+        if (reviewsResponse.status === "fulfilled") setCustomerReviews(reviewsResponse.value.data.reviews || []);
+        else setCustomerReviews([]);
       })
       .catch(() => {
         setItemTypes([]);
+        setCustomerReviews([]);
       });
   }, []);
 
@@ -228,15 +231,29 @@ export default function HomePage() {
           <p className="text-sm font-bold uppercase tracking-wide text-meadow">Customer reviews</p>
           <h2 className="mt-2 text-3xl font-black text-ink dark:text-white">Loved by renters planning real moments.</h2>
         </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {reviews.map(([name, text]) => (
-            <article key={name} className="reveal-card rounded-2xl border border-violet-100 bg-white/85 p-5 shadow-sm dark:border-violet-900/70 dark:bg-white/10">
-              <div className="flex gap-1 text-clay">{[1, 2, 3, 4, 5].map((item) => <Star key={item} className="h-4 w-4 fill-current" />)}</div>
-              <p className="mt-4 text-sm leading-6 text-violet-950/70 dark:text-violet-100/75">"{text}"</p>
-              <p className="mt-4 font-black">{name}</p>
-            </article>
-          ))}
-        </div>
+        {customerReviews.length ? (
+          <div className="grid gap-4 md:grid-cols-3">
+            {customerReviews.slice(0, 6).map((review) => (
+              <article key={review._id} className="reveal-card rounded-2xl border border-violet-100 bg-white/85 p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-soft dark:border-violet-900/70 dark:bg-white/10">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex gap-1 text-clay">
+                    {[1, 2, 3, 4, 5].map((item) => (
+                      <Star key={item} className={`h-4 w-4 ${item <= Number(review.rating || 0) ? "fill-current" : ""}`} />
+                    ))}
+                  </div>
+                  <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-black text-violet-700 dark:bg-violet-950/70 dark:text-violet-100">{Number(review.rating || 0).toFixed(1)}</span>
+                </div>
+                <p className="mt-4 text-sm leading-6 text-violet-950/70 dark:text-violet-100/75">"{review.comment}"</p>
+                <p className="mt-4 font-black">{review.user?.name || "Zasoota renter"}</p>
+                <p className="mt-1 text-xs font-semibold text-violet-950/50 dark:text-violet-100/55">{review.property?.title || "Rental experience"}</p>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-violet-100 bg-white/80 p-6 text-sm font-semibold text-violet-950/60 shadow-sm dark:border-violet-900/70 dark:bg-white/10 dark:text-violet-100/65">
+            Customer reviews will appear here after renters review items.
+          </div>
+        )}
       </section>
     </>
   );

@@ -33,8 +33,8 @@ export default function Footer() {
         <div className="space-y-3 text-sm text-violet-950/65 dark:text-violet-100/70">
           <strong className="block text-ink dark:text-stone-100">Help desk</strong>
           <p className="flex items-center gap-2"><Phone className="h-4 w-4 text-meadow" /> 8796318284</p>
-          <p className="flex items-center gap-2"><Mail className="h-4 w-4 text-meadow" /> Zasoota.in@gmail.com</p>
-          <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-meadow" /> Doorstep delivery and pickup</p>
+          <p className="flex items-center gap-2"><Mail className="h-4 w-4 text-meadow" /> zasoota.in@gmail.com</p>
+          <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-meadow" /> Doorstep delivery</p>
         </div>
       </div>
       <div className="border-t border-violet-100 dark:border-violet-900/70">

@@ -43,7 +43,7 @@ export default function RentalRequestCard({ request, onStatusChange, showUser = 
         <InfoTile icon={Phone} label="Phone" value={request.user?.phone || request.phone || "-"} />
         <InfoTile icon={CalendarDays} label="Rental dates" value={`${formatDate(request.startDate)} - ${formatDate(request.endDate)}`} subValue={`${request.rentalDays || "-"} day(s)`} />
         <InfoTile icon={PackageCheck} label="Quantity" value={`${request.quantity || 1} item(s)`} subValue={showAvailable ? `Available now: ${quantityOf(item) || 0}` : undefined} />
-        <InfoTile icon={IndianRupee} label="Total" value={`₹${Number(request.totalAmount || 0).toLocaleString()}`} subValue={`Delivery ₹${Number(request.deliveryCharge || 0).toLocaleString()}`} />
+        <InfoTile icon={IndianRupee} label="Total" value={`₹${Number(request.totalAmount || 0).toLocaleString()}`} />
       </div>
 
       <div className="mt-3 rounded-lg bg-mist p-3 text-sm dark:bg-stone-800">
@@ -53,7 +53,7 @@ export default function RentalRequestCard({ request, onStatusChange, showUser = 
             <strong>{isDelivery ? "Delivery requested" : "Pickup selected"}</strong>
             <p className="mt-1 text-stone-600 dark:text-stone-300">
               {isDelivery
-                ? `${request.deliveryAddress || "No address"} • ${request.deliveryDistanceKm || 0} km • ₹${Number(request.deliveryCharge || 0).toLocaleString()}`
+                ? request.deliveryAddress || "No address"
                 : "User will coordinate pickup from the listed pickup point."}
             </p>
           </div>

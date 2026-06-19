@@ -3,7 +3,7 @@ import EmptyState from "@/components/common/EmptyState";
 
 export default function PropertyGrid({ properties }) {
   if (!properties?.length) {
-    return <EmptyState title="No rental items found" message="Try another category, city, or rent range. New inventory appears here as soon as admin publishes it." actionHref="/properties" actionLabel="Reset search" />;
+    return <EmptyState title="No rental items found" message="Try another category, pincode, or rent range. New inventory appears here as soon as admin publishes it." actionHref="/properties" actionLabel="Reset search" />;
   }
 
   return (
