@@ -5,7 +5,6 @@ import Link from "next/link";
 import { ArrowRight, Camera, IndianRupee, Luggage, MessageCircle, MonitorUp, RefreshCw, ShieldCheck, Shirt, Speaker, Star, Tags, Truck, WalletCards } from "lucide-react";
 import HeroSection from "@/components/home/HeroSection";
 import api, { uploadUrl } from "@/lib/api";
-import { itemTypeOf } from "@/lib/itemFields";
 
 const categoryIcons = {
   projector: MonitorUp,
@@ -14,34 +13,6 @@ const categoryIcons = {
   luggage: Luggage,
   fashion: Shirt
 };
-
-const featuredCategories = [
-  {
-    name: "Projector",
-    image: "https://images.unsplash.com/photo-1601944177325-f8867652837f?auto=format&fit=crop&w=900&q=80"
-  },
-  {
-    name: "Speaker",
-    image: "https://images.unsplash.com/photo-1545454675-3531b543be5d?auto=format&fit=crop&w=900&q=80"
-  },
-  {
-    name: "Camera",
-    image: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=900&q=80",
-    images: [
-      "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=900&q=80",
-      "https://images.unsplash.com/photo-1601944177325-f8867652837f?auto=format&fit=crop&w=900&q=80",
-      "https://images.unsplash.com/photo-1545454675-3531b543be5d?auto=format&fit=crop&w=900&q=80"
-    ]
-  },
-  {
-    name: "Luggage",
-    image: "https://images.unsplash.com/photo-1553531888-a5f7d704a33f?auto=format&fit=crop&w=900&q=80"
-  },
-  {
-    name: "Fashion",
-    image: "https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80"
-  }
-];
 
 const fallbackCategoryImages = {
   projector: "https://images.unsplash.com/photo-1601944177325-f8867652837f?auto=format&fit=crop&w=900&q=80",
@@ -108,28 +79,18 @@ const reviews = [
 
 export default function HomePage() {
   const [itemTypes, setItemTypes] = useState([]);
-  const [categoryCounts, setCategoryCounts] = useState({});
 
   useEffect(() => {
-    Promise.all([api.get("/properties?sort=newest"), api.get("/item-types")])
-      .then(([propertiesResponse, itemTypesResponse]) => {
-        const allProperties = propertiesResponse.data.properties;
+    api.get("/item-types")
+      .then((itemTypesResponse) => {
         setItemTypes(itemTypesResponse.data.itemTypes);
-        setCategoryCounts(allProperties.reduce((items, item) => {
-          const type = itemTypeOf(item);
-          items[type] = (items[type] || 0) + 1;
-          return items;
-        }, {}));
       })
       .catch(() => {
         setItemTypes([]);
-        setCategoryCounts({});
       });
   }, []);
 
-  const categories = itemTypes.length
-    ? itemTypes.map((type) => ({ ...type, image: categoryImageFor(type) }))
-    : featuredCategories;
+  const categories = itemTypes.map((type) => ({ ...type, image: categoryImageFor(type) }));
 
   return (
     <>
@@ -153,8 +114,9 @@ export default function HomePage() {
           <p className="text-sm font-bold uppercase tracking-wide text-meadow">Browse by category</p>
           <h2 className="mt-2 text-3xl font-black text-ink dark:text-white md:text-4xl">Find what you need faster</h2>
         </div>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {categories.slice(0, 8).map((type) => {
+        {categories.length ? (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {categories.slice(0, 8).map((type) => {
             const Icon = categoryIcons[type.name.toLowerCase()] || Tags;
             const cardImages = type.images || (type.image ? [type.image] : [fallbackCategoryImages.default]);
             return (
@@ -178,12 +140,6 @@ export default function HomePage() {
                     <div className="flex h-full items-center justify-center"><Icon className="h-12 w-12 text-meadow" /></div>
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-ink/58 via-transparent to-transparent opacity-90 transition group-hover:opacity-100" />
-                  <span className="absolute left-4 top-4 flex h-10 w-10 items-center justify-center rounded-2xl border border-white/35 bg-white/92 text-meadow shadow-soft backdrop-blur dark:bg-[#150927]/88">
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <span className="absolute bottom-4 right-4 rounded-full border border-white/30 bg-white/90 px-3 py-1 text-xs font-black text-ink shadow-sm backdrop-blur dark:bg-[#150927]/88 dark:text-violet-100">
-                    {categoryCounts[type.name] || 0} items
-                  </span>
                 </div>
                 <div className="flex items-center justify-between gap-4 px-2 py-4">
                   <div className="min-w-0">
@@ -196,8 +152,13 @@ export default function HomePage() {
                 </div>
               </Link>
             );
-          })}
-        </div>
+            })}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-violet-100 bg-white/80 p-6 text-sm font-semibold text-violet-950/60 shadow-sm dark:border-violet-900/70 dark:bg-white/10 dark:text-violet-100/65">
+            Categories will appear here once item types are added from the admin portal.
+          </div>
+        )}
       </section>
       <section className="bg-gradient-to-br from-violet-950 via-[#2a1150] to-fuchsia-950 py-14 text-white">
         <div className="mx-auto max-w-7xl px-4">

@@ -14,7 +14,7 @@ export default function PropertyDetails({ property }) {
     <section className="space-y-5">
       <div>
         <h1 className="text-3xl font-black text-ink dark:text-stone-50">{property.title}</h1>
-        <p className="mt-2 text-stone-600 dark:text-stone-300">Pickup from {property.address}, {property.city}, {property.state} {property.pincode}</p>
+        <p className="mt-2 text-stone-600 dark:text-stone-300">Doorstep delivery from {property.city}, {property.state} {property.pincode}</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {facts.map(({ icon: Icon, label }) => (

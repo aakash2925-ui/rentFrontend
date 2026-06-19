@@ -1,4 +1,10 @@
+"use client";
+
+import { useState } from "react";
 import { Clock3, Headphones, Mail, MapPin, MessageCircle, Phone, ShieldCheck } from "lucide-react";
+import api from "@/lib/api";
+import ErrorMessage from "@/components/common/ErrorMessage";
+import { useToast } from "@/context/ToastContext";
 
 const contactCards = [
   { icon: Phone, label: "Call support", value: "8796318284", detail: "10 AM - 7 PM" },
@@ -13,6 +19,38 @@ const helpTopics = [
 ];
 
 export default function ContactPage() {
+  const { showToast } = useToast();
+  const [form, setForm] = useState({ name: "", email: "", phone: "", topic: "", subject: "", message: "", website: "" });
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const updateForm = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+
+  const submit = async (event) => {
+    event.preventDefault();
+    setError("");
+    setSuccess("");
+    if (!form.name.trim() || !form.email.trim() || !form.subject.trim() || !form.message.trim()) {
+      return setError("Name, email, subject, and message are required.");
+    }
+    if (form.message.trim().length < 10) return setError("Message must be at least 10 characters.");
+
+    setLoading(true);
+    try {
+      await api.post("/contact", form);
+      setSuccess("Message sent. If email delivery is configured, you will also receive a confirmation.");
+      showToast("Contact inquiry sent");
+      setForm({ name: "", email: "", phone: "", topic: "", subject: "", message: "", website: "" });
+    } catch (err) {
+      const message = err.response?.data?.message || "Unable to send message";
+      setError(message);
+      showToast(message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-10">
       <section className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
@@ -48,7 +86,7 @@ export default function ContactPage() {
           </div>
         </div>
 
-        <form className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900 md:p-6">
+        <form onSubmit={submit} className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900 md:p-6">
           <div className="mb-5 flex items-start justify-between gap-4">
             <div>
               <h2 className="text-2xl font-black text-ink dark:text-stone-50">Send a message</h2>
@@ -59,19 +97,22 @@ export default function ContactPage() {
             </span>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <input className="field" placeholder="Name" />
-            <input className="field" type="email" placeholder="Email" />
-            <input className="field" placeholder="Phone" />
-            <select className="field" defaultValue="">
+            {error && <div className="sm:col-span-2"><ErrorMessage message={error} /></div>}
+            {success && <div className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700 dark:bg-green-950/40 dark:text-green-200 sm:col-span-2">{success}</div>}
+            <input className="hidden" tabIndex="-1" autoComplete="off" value={form.website} onChange={(event) => updateForm("website", event.target.value)} />
+            <input className="field" placeholder="Name" required value={form.name} onChange={(event) => updateForm("name", event.target.value)} />
+            <input className="field" type="email" placeholder="Email" required value={form.email} onChange={(event) => updateForm("email", event.target.value)} />
+            <input className="field" placeholder="Phone" value={form.phone} onChange={(event) => updateForm("phone", event.target.value)} />
+            <select className="field" value={form.topic} onChange={(event) => updateForm("topic", event.target.value)}>
               <option value="" disabled>Support topic</option>
-              <option>Rental request</option>
-              <option>Delivery charges</option>
-              <option>Booking status</option>
-              <option>Admin account</option>
+              <option value="Rental request">Rental request</option>
+              <option value="Delivery charges">Delivery charges</option>
+              <option value="Booking status">Booking status</option>
+              <option value="Admin account">Admin account</option>
             </select>
-            <input className="field sm:col-span-2" placeholder="Subject" />
-            <textarea className="field min-h-36 sm:col-span-2" placeholder="Message" />
-            <button className="btn-primary sm:col-span-2" type="button">Send message</button>
+            <input className="field sm:col-span-2" placeholder="Subject" required value={form.subject} onChange={(event) => updateForm("subject", event.target.value)} />
+            <textarea className="field min-h-36 sm:col-span-2" placeholder="Message" required value={form.message} onChange={(event) => updateForm("message", event.target.value)} />
+            <button className="btn-primary sm:col-span-2" disabled={loading}>{loading ? "Sending..." : "Send message"}</button>
           </div>
         </form>
       </section>

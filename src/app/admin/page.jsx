@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Boxes, ClipboardList, History, ImagePlus, LayoutDashboard, Package, PackagePlus, Pencil, Save, Tags, Trash2, Users, X } from "lucide-react";
+import { Boxes, ClipboardList, History, ImagePlus, LayoutDashboard, Mail, Package, PackagePlus, Pencil, Save, Tags, Trash2, Users, X } from "lucide-react";
 import api, { uploadUrl } from "@/lib/api";
 import { conditionOf, itemTypeOf, quantityOf } from "@/lib/itemFields";
 import ErrorMessage from "@/components/common/ErrorMessage";
@@ -20,6 +20,7 @@ const adminTasks = [
   { id: "items", label: "Items", icon: Boxes },
   { id: "inquiries", label: "Rental Requests", icon: ClipboardList },
   { id: "bookings", label: "Booking Records", icon: Package },
+  { id: "contacts", label: "Contact Inquiries", icon: Mail },
   { id: "activity", label: "Activity Logs", icon: History },
   { id: "users", label: "Users", icon: Users }
 ];
@@ -27,7 +28,7 @@ const adminTasks = [
 const defaultItemTypeImage = "https://images.unsplash.com/photo-1520549233664-03f65c1d1327?auto=format&fit=crop&w=900&q=80";
 
 export default function AdminDashboardPage() {
-  const [data, setData] = useState({ stats: null, users: [], properties: [], inquiries: [], bookings: [], logs: [], itemTypes: [] });
+  const [data, setData] = useState({ stats: null, users: [], properties: [], inquiries: [], bookings: [], contacts: [], logs: [], itemTypes: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [typeName, setTypeName] = useState("");
@@ -48,16 +49,18 @@ export default function AdminDashboardPage() {
       api.get("/admin/properties"),
       api.get("/admin/inquiries"),
       api.get("/bookings"),
+      api.get("/contact?limit=50"),
       api.get("/admin/activity-logs"),
       api.get("/item-types")
     ])
-      .then(([stats, users, properties, inquiries, bookings, logs, itemTypes]) => {
+      .then(([stats, users, properties, inquiries, bookings, contacts, logs, itemTypes]) => {
         setData({
           stats: stats.data.stats,
           users: users.data.users,
           properties: properties.data.properties,
           inquiries: inquiries.data.inquiries,
           bookings: bookings.data.bookings,
+          contacts: contacts.data.contacts,
           logs: logs.data.logs,
           itemTypes: itemTypes.data.itemTypes
         });
@@ -206,6 +209,37 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const updateContactStatus = async (id, status) => {
+    try {
+      const { data: response } = await api.put(`/contact/${id}/status`, { status });
+      const { data: logs } = await api.get("/admin/activity-logs");
+      setData((current) => ({
+        ...current,
+        contacts: current.contacts.map((contact) => contact._id === id ? response.contact : contact),
+        logs: logs.logs
+      }));
+      showToast("Contact status updated");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to update contact status", "error");
+    }
+  };
+
+  const deleteContact = async (id) => {
+    if (!window.confirm("Delete this contact inquiry?")) return;
+    try {
+      await api.delete(`/contact/${id}`);
+      const { data: logs } = await api.get("/admin/activity-logs");
+      setData((current) => ({
+        ...current,
+        contacts: current.contacts.filter((contact) => contact._id !== id),
+        logs: logs.logs
+      }));
+      showToast("Contact inquiry deleted");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to delete contact inquiry", "error");
+    }
+  };
+
   const exportCsv = (filename, rows) => {
     if (!rows.length) return showToast("No rows to export", "error");
     const headers = Object.keys(rows[0]);
@@ -276,6 +310,7 @@ export default function AdminDashboardPage() {
               {activeTask === "items" && <ItemsPanel items={data.properties} filters={filters} setFilters={setFilters} deleteItem={deleteItem} exportCsv={exportCsv} />}
               {activeTask === "inquiries" && <InquiriesPanel inquiries={data.inquiries} filters={filters} setFilters={setFilters} updateInquiryStatus={updateInquiryStatus} exportCsv={exportCsv} />}
               {activeTask === "bookings" && <BookingsPanel bookings={data.bookings} filters={filters} setFilters={setFilters} updatePaymentStatus={updatePaymentStatus} exportCsv={exportCsv} />}
+              {activeTask === "contacts" && <ContactsPanel contacts={data.contacts} filters={filters} setFilters={setFilters} updateContactStatus={updateContactStatus} deleteContact={deleteContact} exportCsv={exportCsv} />}
               {activeTask === "activity" && <ActivityPanel logs={data.logs} filters={filters} setFilters={setFilters} exportCsv={exportCsv} />}
               {activeTask === "users" && <UsersPanel users={data.users} filters={filters} setFilters={setFilters} updateUserRole={updateUserRole} exportCsv={exportCsv} />}
             </section>
@@ -604,6 +639,105 @@ function BookingsPanel({ bookings, filters, setFilters, updatePaymentStatus, exp
             </select>
           </div>
         )) : <EmptyState title="No matching booking records" message="Booking records are created when rental requests are submitted." />}
+      </div>
+    </section>
+  );
+}
+
+function ContactsPanel({ contacts, filters, setFilters, updateContactStatus, deleteContact, exportCsv }) {
+  const [page, setPage] = useState(1);
+  const [sort, setSort] = useState({ key: "createdAt", direction: "desc" });
+  const pageSize = 8;
+  const statusOptions = [["", "All statuses"], ["pending", "Pending"], ["in_progress", "In Progress"], ["resolved", "Resolved"]];
+  const statusLabels = { pending: "Pending", in_progress: "In Progress", resolved: "Resolved" };
+  const statusClasses = {
+    pending: "bg-amber-50 text-amber-700",
+    in_progress: "bg-blue-50 text-blue-700",
+    resolved: "bg-green-50 text-green-700"
+  };
+
+  const filteredContacts = contacts.filter((contact) => {
+    const q = filters.search.toLowerCase();
+    const text = `${contact.name} ${contact.email} ${contact.phone || ""} ${contact.subject} ${contact.message}`.toLowerCase();
+    return (!q || text.includes(q)) && (!filters.status || contact.status === filters.status) && matchesDate(contact.createdAt, filters);
+  }).sort((a, b) => {
+    const left = sort.key === "createdAt" ? new Date(a.createdAt).getTime() : String(a[sort.key] || "").localeCompare(String(b[sort.key] || ""));
+    const right = sort.key === "createdAt" ? new Date(b.createdAt).getTime() : 0;
+    const result = sort.key === "createdAt" ? left - right : left;
+    return sort.direction === "asc" ? result : -result;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredContacts.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const visibleContacts = filteredContacts.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const changeSort = (key) => {
+    setSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === "desc" ? "asc" : "desc"
+    }));
+  };
+
+  return (
+    <section className="rounded-lg border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+        <div>
+          <h2 className="text-lg font-black">Contact Inquiries</h2>
+          <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">Manage website messages, statuses, and follow-ups from one place.</p>
+        </div>
+        <button className="btn-secondary" onClick={() => exportCsv("contact-inquiries.csv", filteredContacts.map((contact) => ({
+          name: contact.name,
+          email: contact.email,
+          phone: contact.phone,
+          subject: contact.subject,
+          status: statusLabels[contact.status],
+          submitted: new Date(contact.createdAt).toLocaleString()
+        })))}>
+          Export CSV
+        </button>
+      </div>
+      <AdminFilters showDates filters={filters} setFilters={(updater) => {
+        setPage(1);
+        setFilters(updater);
+      }} statusOptions={statusOptions} />
+      <div className="mt-5 flex flex-wrap gap-2 text-xs font-bold">
+        {["createdAt", "name", "email", "status"].map((key) => (
+          <button key={key} className="rounded-full border border-stone-200 px-3 py-1 capitalize hover:border-meadow hover:text-meadow dark:border-stone-700" onClick={() => changeSort(key)} type="button">
+            Sort {key === "createdAt" ? "date" : key} {sort.key === key ? sort.direction : ""}
+          </button>
+        ))}
+      </div>
+      <div className="mt-5 space-y-3">
+        {visibleContacts.length ? visibleContacts.map((contact) => (
+          <article key={contact._id} className="rounded-lg bg-mist p-4 text-sm dark:bg-stone-800">
+            <div className="grid gap-4 lg:grid-cols-[1fr_180px_44px] lg:items-start">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base font-black text-ink dark:text-white">{contact.subject}</h3>
+                  <span className={`rounded-full px-2 py-1 text-xs font-bold ${statusClasses[contact.status]}`}>{statusLabels[contact.status]}</span>
+                </div>
+                <p className="mt-1 font-semibold text-stone-700 dark:text-stone-200">{contact.name} - {contact.email}</p>
+                <p className="mt-1 text-stone-600 dark:text-stone-300">{contact.phone || "No phone"} · {contact.topic || "General"} · {new Date(contact.createdAt).toLocaleString()}</p>
+                <p className="mt-3 leading-6 text-stone-700 dark:text-stone-200">{contact.message}</p>
+              </div>
+              <select className="field" value={contact.status} onChange={(event) => updateContactStatus(contact._id, event.target.value)}>
+                <option value="pending">Pending</option>
+                <option value="in_progress">In Progress</option>
+                <option value="resolved">Resolved</option>
+              </select>
+              <button className="rounded-lg p-2 text-stone-500 hover:bg-white hover:text-red-600 dark:text-stone-400 dark:hover:bg-stone-900 dark:hover:text-red-400" onClick={() => deleteContact(contact._id)} aria-label={`Delete ${contact.subject}`} type="button">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          </article>
+        )) : <EmptyState title="No matching contact inquiries" message="Website contact form submissions will appear here." />}
+      </div>
+      <div className="mt-5 flex items-center justify-between gap-3 text-sm">
+        <span className="text-stone-500 dark:text-stone-400">Page {currentPage} of {totalPages} · {filteredContacts.length} result(s)</span>
+        <div className="flex gap-2">
+          <button className="btn-secondary" type="button" disabled={currentPage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</button>
+          <button className="btn-secondary" type="button" disabled={currentPage >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>Next</button>
+        </div>
       </div>
     </section>
   );
