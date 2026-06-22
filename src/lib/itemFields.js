@@ -1,7 +1,6 @@
 export const itemTypeOf = (item) => item?.itemType || item?.propertyType || "";
 export const quantityOf = (item) => Number(item?.quantity ?? item?.bedrooms ?? 0);
 export const minRentalDaysOf = (item) => Number(item?.minRentalDays ?? item?.bathrooms ?? 1);
-export const specValueOf = (item) => Number(item?.specValue ?? item?.area ?? 0);
 export const conditionOf = (item) => item?.condition || item?.furnishing || "Good";
 
 export const rentalDaysBetween = (startDate, endDate) => {

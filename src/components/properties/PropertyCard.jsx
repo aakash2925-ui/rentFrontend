@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Boxes, CalendarClock, ChevronLeft, ChevronRight, Gauge, MapPin } from "lucide-react";
+import { Boxes, CalendarClock, ChevronLeft, ChevronRight, MapPin, Percent } from "lucide-react";
 import { useState } from "react";
 import { uploadUrl } from "@/lib/api";
-import { minRentalDaysOf, quantityOf, specValueOf } from "@/lib/itemFields";
+import { minRentalDaysOf, quantityOf } from "@/lib/itemFields";
 import WishlistButton from "./WishlistButton";
 import AddToCartButton from "@/components/cart/AddToCartButton";
 
@@ -47,11 +47,11 @@ export default function PropertyCard({ property }) {
           <Link href={`/properties/${property._id}`} className="line-clamp-2 text-base font-bold hover:text-meadow">{property.title}</Link>
           <p className="whitespace-nowrap text-sm font-black text-meadow">₹{Number(property.rent).toLocaleString()}</p>
         </div>
-        <p className="mt-2 flex items-center gap-1 text-sm text-stone-500 dark:text-stone-400"><MapPin className="h-4 w-4" /> {property.city}, {property.state}</p>
-        <div className="mt-4 grid grid-cols-3 gap-2 text-xs text-stone-600 dark:text-stone-300">
+        <p className="mt-2 flex items-center gap-1 text-sm text-stone-500 dark:text-stone-400"><MapPin className="h-4 w-4" /> Pincode {property.pincode}</p>
+        {property.offer && <p className="mt-2 flex items-center gap-1 text-sm font-bold text-meadow"><Percent className="h-4 w-4" /> {property.offer}</p>}
+        <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-stone-600 dark:text-stone-300">
           <span className="flex items-center gap-1"><Boxes className="h-4 w-4" /> Qty {quantity}</span>
           <span className="flex items-center gap-1"><CalendarClock className="h-4 w-4" /> {minRentalDaysOf(property)}+ days</span>
-          <span className="flex items-center gap-1"><Gauge className="h-4 w-4" /> {specValueOf(property)} spec</span>
         </div>
         <AddToCartButton property={property} compact className="mt-4 w-full" />
       </div>

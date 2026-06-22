@@ -24,6 +24,19 @@ export function AuthProvider({ children }) {
     return data.user;
   };
 
+  const googleLogin = async (credential) => {
+    let sessionId = sessionStorage.getItem("google_login_email_session");
+    if (!sessionId) {
+      sessionId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      sessionStorage.setItem("google_login_email_session", sessionId);
+    }
+    const { data } = await api.post("/auth/google", { credential, sessionId });
+    localStorage.setItem("rent_token", data.token);
+    localStorage.setItem("rent_user", JSON.stringify(data.user));
+    setUser(data.user);
+    return data.user;
+  };
+
   const register = async (payload) => {
     const { data } = await api.post("/auth/register", payload);
     localStorage.setItem("rent_token", data.token);
@@ -38,7 +51,7 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
-  const value = useMemo(() => ({ user, loading, login, register, logout }), [user, loading]);
+  const value = useMemo(() => ({ user, loading, login, googleLogin, register, logout }), [user, loading]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

@@ -8,7 +8,12 @@ import Navbar from "@/components/layout/Navbar";
 
 export const metadata = {
   title: "Zasoota Rentals",
-  description: "Rent projectors, speakers, cameras, luggage, fashion and more."
+  description: "Rent projectors, speakers, cameras, luggage, fashion and more.",
+  icons: {
+    icon: "/zasoota-logo.svg",
+    shortcut: "/zasoota-logo.svg",
+    apple: "/zasoota-logo.svg"
+  }
 };
 
 export default function RootLayout({ children }) {

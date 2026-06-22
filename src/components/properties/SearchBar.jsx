@@ -23,7 +23,7 @@ export default function SearchBar({ onSearch, showCity = true }) {
 
   return (
     <form onSubmit={submit} className={`grid gap-3 rounded-lg border border-stone-200 bg-mist p-3 shadow-sm dark:border-stone-800 dark:bg-stone-900 ${showCity ? "md:grid-cols-5" : "md:grid-cols-4"}`}>
-      {showCity && <input className="field" placeholder="City" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />}
+      {showCity && <input className="field" placeholder="Pincode" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />}
       <input className="field" type="number" placeholder="Max daily rent" value={form.maxRent} onChange={(e) => setForm({ ...form, maxRent: e.target.value })} />
       <select className="field" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
         <option value="">Any item</option>

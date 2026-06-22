@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, Menu, PlusCircle, Search, ShoppingCart, UserRound } from "lucide-react";
+import { Menu, PlusCircle, Search, ShoppingCart, UserRound } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
@@ -15,15 +15,10 @@ const links = [
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { count } = useCart();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-
-  const signOut = () => {
-    logout();
-    router.push("/");
-  };
 
   const searchItems = (event) => {
     event.preventDefault();
@@ -90,14 +85,9 @@ export default function Navbar() {
             </Link>
           )}
           {user ? (
-            <>
-              <Link href={user.role === "admin" ? "/admin" : "/dashboard"} className="btn-secondary">
-                <UserRound className="h-4 w-4" /> Dashboard
-              </Link>
-              <button onClick={signOut} className="btn-primary">
-                <LogOut className="h-4 w-4" /> Logout
-              </button>
-            </>
+            <Link href={user.role === "admin" ? "/admin" : "/dashboard"} className="btn-secondary">
+              <UserRound className="h-4 w-4" /> Dashboard
+            </Link>
           ) : (
             <Link href="/login" className="btn-primary">Login</Link>
           )}

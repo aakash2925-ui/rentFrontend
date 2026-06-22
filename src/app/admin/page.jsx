@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Boxes, ClipboardList, History, ImagePlus, LayoutDashboard, Package, PackagePlus, Pencil, Save, Tags, Trash2, Users, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { BarChart3, Boxes, CalendarCheck, History, ImagePlus, LayoutDashboard, Mail, Menu, Package, PackageCheck, PackagePlus, Pencil, Save, Tags, Trash2, Users, X } from "lucide-react";
 import api, { uploadUrl } from "@/lib/api";
 import { conditionOf, itemTypeOf, quantityOf } from "@/lib/itemFields";
 import ErrorMessage from "@/components/common/ErrorMessage";
@@ -10,24 +11,42 @@ import EmptyState from "@/components/common/EmptyState";
 import Loading from "@/components/common/Loading";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
-import RentalRequestCard from "@/components/dashboard/RentalRequestCard";
+import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 import { useToast } from "@/context/ToastContext";
-import { statusLabel, statusOptions as rentalStatusOptions, statusTone } from "@/lib/rentalStatus";
+import { useAuth } from "@/context/AuthContext";
+import { statusTone } from "@/lib/rentalStatus";
 
 const adminTasks = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "types", label: "Item Types", icon: Tags },
   { id: "items", label: "Items", icon: Boxes },
-  { id: "inquiries", label: "Rental Requests", icon: ClipboardList },
-  { id: "bookings", label: "Booking Records", icon: Package },
+  { id: "bookings", label: "Booking Requests", icon: Package },
+  { id: "contacts", label: "Contact Inquiries", icon: Mail },
   { id: "activity", label: "Activity Logs", icon: History },
   { id: "users", label: "Users", icon: Users }
 ];
 
+const bookingStatusOptions = [
+  ["pending", "Pending"],
+  ["rented", "Confirmed"],
+  ["closed", "Cancelled"],
+  ["returned", "Completed"]
+];
+
+const bookingStatusLabel = (status) => ({
+  pending: "Pending",
+  contacted: "Contacted",
+  rented: "Confirmed",
+  returned: "Completed",
+  closed: "Cancelled"
+}[status] || status);
+
 const defaultItemTypeImage = "https://images.unsplash.com/photo-1520549233664-03f65c1d1327?auto=format&fit=crop&w=900&q=80";
 
 export default function AdminDashboardPage() {
-  const [data, setData] = useState({ stats: null, users: [], properties: [], inquiries: [], bookings: [], logs: [], itemTypes: [] });
+  const { user, logout } = useAuth();
+  const router = useRouter();
+  const [data, setData] = useState({ stats: null, users: [], properties: [], bookings: [], contacts: [], logs: [], itemTypes: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [typeName, setTypeName] = useState("");
@@ -38,6 +57,8 @@ export default function AdminDashboardPage() {
   const [editTypeImage, setEditTypeImage] = useState(null);
   const [editTypePreview, setEditTypePreview] = useState("");
   const [activeTask, setActiveTask] = useState("overview");
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [filters, setFilters] = useState({ search: "", status: "", type: "", role: "", dateFrom: "", dateTo: "" });
   const { showToast } = useToast();
 
@@ -46,18 +67,18 @@ export default function AdminDashboardPage() {
       api.get("/admin/stats"),
       api.get("/admin/users"),
       api.get("/admin/properties"),
-      api.get("/admin/inquiries"),
       api.get("/bookings"),
+      api.get("/contact?limit=50"),
       api.get("/admin/activity-logs"),
       api.get("/item-types")
     ])
-      .then(([stats, users, properties, inquiries, bookings, logs, itemTypes]) => {
+      .then(([stats, users, properties, bookings, contacts, logs, itemTypes]) => {
         setData({
           stats: stats.data.stats,
           users: users.data.users,
           properties: properties.data.properties,
-          inquiries: inquiries.data.inquiries,
           bookings: bookings.data.bookings,
+          contacts: contacts.data.contacts,
           logs: logs.data.logs,
           itemTypes: itemTypes.data.itemTypes
         });
@@ -150,32 +171,46 @@ export default function AdminDashboardPage() {
       showToast(err.response?.data?.message || "Unable to delete item", "error");
       return;
     }
-    const [{ data: stats }, { data: properties }, { data: inquiries }] = await Promise.all([
+    const [{ data: stats }, { data: properties }] = await Promise.all([
       api.get("/admin/stats"),
-      api.get("/admin/properties"),
-      api.get("/admin/inquiries")
+      api.get("/admin/properties")
     ]);
 
     setData((current) => ({
       ...current,
       stats: stats.stats,
-      properties: properties.properties,
-      inquiries: inquiries.inquiries
+      properties: properties.properties
     }));
   };
 
-  const updateInquiryStatus = async (id, status) => {
-    const { data: response } = await api.put(`/inquiries/${id}/status`, { status });
-    const [{ data: properties }, { data: inquiries }] = await Promise.all([
-      api.get("/admin/properties"),
-      api.get("/admin/inquiries")
-    ]);
-    setData((current) => ({
-      ...current,
-      inquiries: inquiries.inquiries.map((item) => item._id === id ? { ...item, status: response.inquiry.status } : item),
-      properties: properties.properties
-    }));
-    showToast("Rental request status updated");
+  const updateBookingStatus = async (id, status) => {
+    try {
+      const { data: response } = await api.put(`/bookings/${id}/status`, { status });
+      const [{ data: properties }, { data: logs }] = await Promise.all([
+        api.get("/admin/properties"),
+        api.get("/admin/activity-logs")
+      ]);
+      setData((current) => ({
+        ...current,
+        bookings: current.bookings.map((booking) => booking._id === id ? { ...booking, status: response.booking.status, inventoryReserved: response.booking.inventoryReserved } : booking),
+        properties: properties.properties,
+        logs: logs.logs
+      }));
+      showToast("Booking request status updated");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to update booking request", "error");
+    }
+  };
+
+  const signOut = () => {
+    logout();
+    showToast("Logged out successfully");
+    router.push("/");
+  };
+
+  const selectTask = (id) => {
+    setActiveTask(id);
+    setMobileOpen(false);
   };
 
   const updateUserRole = async (id, role) => {
@@ -206,6 +241,37 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const updateContactStatus = async (id, status) => {
+    try {
+      const { data: response } = await api.put(`/contact/${id}/status`, { status });
+      const { data: logs } = await api.get("/admin/activity-logs");
+      setData((current) => ({
+        ...current,
+        contacts: current.contacts.map((contact) => contact._id === id ? response.contact : contact),
+        logs: logs.logs
+      }));
+      showToast("Contact status updated");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to update contact status", "error");
+    }
+  };
+
+  const deleteContact = async (id) => {
+    if (!window.confirm("Delete this contact inquiry?")) return;
+    try {
+      await api.delete(`/contact/${id}`);
+      const { data: logs } = await api.get("/admin/activity-logs");
+      setData((current) => ({
+        ...current,
+        contacts: current.contacts.filter((contact) => contact._id !== id),
+        logs: logs.logs
+      }));
+      showToast("Contact inquiry deleted");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to delete contact inquiry", "error");
+    }
+  };
+
   const exportCsv = (filename, rows) => {
     if (!rows.length) return showToast("No rows to export", "error");
     const headers = Object.keys(rows[0]);
@@ -226,33 +292,28 @@ export default function AdminDashboardPage() {
     <ProtectedRoute roles={["admin"]}>
       <DashboardLayout title="Admin dashboard">
         {loading ? <Loading /> : error ? <ErrorMessage message={error} /> : (
-          <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
-            <aside className="rounded-lg border border-stone-200 bg-white p-3 dark:border-stone-800 dark:bg-stone-900 lg:sticky lg:top-24 lg:self-start">
-              <nav className="space-y-1">
-                {adminTasks.map((task) => {
-                  const Icon = task.icon;
-                  const isActive = activeTask === task.id;
+          <div className="relative">
+            <button className="btn-secondary mb-4 lg:hidden" type="button" onClick={() => setMobileOpen(true)}>
+              <Menu className="h-4 w-4" /> Menu
+            </button>
+            {mobileOpen && <button className="fixed inset-0 z-30 bg-black/40 lg:hidden" type="button" aria-label="Close menu" onClick={() => setMobileOpen(false)} />}
+            <div className="grid gap-5 lg:grid-cols-[auto_1fr]">
+              <DashboardSidebar
+                activeId={activeTask}
+                collapsed={collapsed}
+                headerLabel="Admin"
+                items={adminTasks}
+                mobileOpen={mobileOpen}
+                onClose={() => setMobileOpen(false)}
+                onCollapse={() => setCollapsed((value) => !value)}
+                onLogout={signOut}
+                onSelect={selectTask}
+                user={user}
+                footer={<Link href="/add-property" className="btn-primary w-full"><PackagePlus className="h-4 w-4" /> Add Item</Link>}
+              />
 
-                  return (
-                    <button
-                      key={task.id}
-                      onClick={() => setActiveTask(task.id)}
-                      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-semibold transition ${isActive ? "bg-meadow text-white" : "text-stone-700 hover:bg-mist hover:text-meadow dark:text-stone-200 dark:hover:bg-stone-800"}`}
-                    >
-                      <Icon className="h-4 w-4" />
-                      {task.label}
-                    </button>
-                  );
-                })}
-              </nav>
-              <Link href="/add-property" className="btn-primary mt-4 w-full">
-                <PackagePlus className="h-4 w-4" />
-                Add Item
-              </Link>
-            </aside>
-
-            <section className="min-w-0">
-              {activeTask === "overview" && <OverviewPanel stats={data.stats} inquiries={data.inquiries} properties={data.properties} bookings={data.bookings} />}
+              <section className="min-w-0 rounded-[1.5rem] border border-violet-100 bg-white/90 p-4 shadow-soft dark:border-violet-900/70 dark:bg-white/10 md:p-6">
+              {activeTask === "overview" && <OverviewPanel stats={data.stats} properties={data.properties} bookings={data.bookings} />}
               {activeTask === "types" && (
                 <ItemTypesPanel
                   itemTypes={data.itemTypes}
@@ -274,11 +335,12 @@ export default function AdminDashboardPage() {
                 />
               )}
               {activeTask === "items" && <ItemsPanel items={data.properties} filters={filters} setFilters={setFilters} deleteItem={deleteItem} exportCsv={exportCsv} />}
-              {activeTask === "inquiries" && <InquiriesPanel inquiries={data.inquiries} filters={filters} setFilters={setFilters} updateInquiryStatus={updateInquiryStatus} exportCsv={exportCsv} />}
-              {activeTask === "bookings" && <BookingsPanel bookings={data.bookings} filters={filters} setFilters={setFilters} updatePaymentStatus={updatePaymentStatus} exportCsv={exportCsv} />}
+              {activeTask === "bookings" && <BookingsPanel bookings={data.bookings} filters={filters} setFilters={setFilters} updateBookingStatus={updateBookingStatus} updatePaymentStatus={updatePaymentStatus} exportCsv={exportCsv} />}
+              {activeTask === "contacts" && <ContactsPanel contacts={data.contacts} filters={filters} setFilters={setFilters} updateContactStatus={updateContactStatus} deleteContact={deleteContact} exportCsv={exportCsv} />}
               {activeTask === "activity" && <ActivityPanel logs={data.logs} filters={filters} setFilters={setFilters} exportCsv={exportCsv} />}
               {activeTask === "users" && <UsersPanel users={data.users} filters={filters} setFilters={setFilters} updateUserRole={updateUserRole} exportCsv={exportCsv} />}
-            </section>
+              </section>
+            </div>
           </div>
         )}
       </DashboardLayout>
@@ -286,49 +348,60 @@ export default function AdminDashboardPage() {
   );
 }
 
-function OverviewPanel({ stats, inquiries, properties, bookings }) {
-  const statusCounts = inquiries.reduce((counts, inquiry) => {
-    counts[inquiry.status] = (counts[inquiry.status] || 0) + 1;
+function OverviewPanel({ stats, properties, bookings }) {
+  const statusCounts = bookings.reduce((counts, booking) => {
+    counts[booking.status] = (counts[booking.status] || 0) + 1;
     return counts;
   }, {});
-  const topCategories = properties.reduce((counts, item) => {
-    const type = itemTypeOf(item) || "Other";
+  const topCategories = bookings.reduce((counts, booking) => {
+    const type = itemTypeOf(booking.property || {}) || "Other";
     counts[type] = (counts[type] || 0) + 1;
     return counts;
   }, {});
-  const revenue = inquiries
-    .filter((inquiry) => ["rented", "returned", "closed"].includes(inquiry.status))
-    .reduce((total, inquiry) => total + Number(inquiry.totalAmount || 0), 0);
+  const revenue = bookings
+    .filter((booking) => ["rented", "returned"].includes(booking.status) || booking.paymentStatus === "paid")
+    .reduce((total, booking) => total + Number(booking.finalAmount || booking.totalAmount || 0), 0);
+  const trendByDay = bookings.reduce((counts, booking) => {
+    const key = new Date(booking.createdAt).toLocaleDateString();
+    counts[key] = (counts[key] || 0) + Number(booking.finalAmount || booking.totalAmount || 0);
+    return counts;
+  }, {});
   const maxStatus = Math.max(1, ...Object.values(statusCounts));
   const maxCategory = Math.max(1, ...Object.values(topCategories));
+  const maxRevenue = Math.max(1, ...Object.values(trendByDay));
   const lowStock = properties.filter((item) => quantityOf(item) > 0 && quantityOf(item) <= 2);
+  const analytics = {
+    bookings: bookings.length,
+    confirmed: statusCounts.rented || 0,
+    pending: statusCounts.pending || 0,
+    cancelled: statusCounts.closed || 0
+  };
 
   return (
     <section className="space-y-5">
-      <div className="grid gap-4 md:grid-cols-3">
-        {Object.entries(stats || {}).map(([key, value]) => (
-          <div key={key} className="rounded-lg border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
-            <p className="text-sm capitalize text-stone-500">{key}</p>
-            <p className="mt-2 text-3xl font-black">{value}</p>
-          </div>
-        ))}
-        <div className="rounded-lg border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
-          <p className="text-sm text-stone-500">Revenue tracked</p>
-          <p className="mt-2 text-3xl font-black">₹{revenue.toLocaleString()}</p>
-        </div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <AnalyticsCard icon={Package} label="Total Bookings" value={analytics.bookings} hint={`${stats?.users || 0} users`} />
+        <AnalyticsCard icon={PackageCheck} label="Confirmed" value={analytics.confirmed} hint="Inventory reserved" />
+        <AnalyticsCard icon={CalendarCheck} label="Pending" value={analytics.pending} hint="Needs review" />
+        <AnalyticsCard icon={BarChart3} label="Revenue" value={`₹${revenue.toLocaleString()}`} hint={`${analytics.cancelled} cancelled`} />
       </div>
       <div className="grid gap-5 lg:grid-cols-2">
-        <ChartCard title="Rental status">
-          {rentalStatusOptions.map(([status, label]) => (
+        <ChartCard title="Booking status">
+          {bookingStatusOptions.map(([status, label]) => (
             <BarRow key={status} label={label} value={statusCounts[status] || 0} max={maxStatus} />
           ))}
         </ChartCard>
-        <ChartCard title="Top categories">
+        <ChartCard title="Most booked categories">
           {Object.entries(topCategories).length ? Object.entries(topCategories).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([type, count]) => (
             <BarRow key={type} label={type} value={count} max={maxCategory} />
           )) : <EmptyState title="No category data" message="Publish items to see top category performance." />}
         </ChartCard>
       </div>
+      <ChartCard title="Revenue trends">
+        {Object.entries(trendByDay).length ? Object.entries(trendByDay).slice(-7).map(([day, amount]) => (
+          <BarRow key={day} label={day} value={amount} max={maxRevenue} prefix="₹" />
+        )) : <EmptyState title="No revenue data" message="Confirmed or paid bookings will create revenue trend data." />}
+      </ChartCard>
       <ChartCard title="Low-stock alerts">
         {lowStock.length ? lowStock.slice(0, 6).map((item) => (
           <div key={item._id} className="flex items-center justify-between rounded-lg bg-mist p-3 text-sm dark:bg-stone-800">
@@ -341,6 +414,23 @@ function OverviewPanel({ stats, inquiries, properties, bookings }) {
   );
 }
 
+function AnalyticsCard({ icon: Icon, label, value, hint }) {
+  return (
+    <div className="rounded-2xl border border-violet-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft dark:border-violet-900/70 dark:bg-stone-950/70">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold text-violet-950/55 dark:text-violet-100/60">{label}</p>
+          <p className="mt-2 text-3xl font-black text-ink dark:text-white">{value}</p>
+          <p className="mt-2 text-xs font-bold text-meadow">{hint}</p>
+        </div>
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 dark:bg-violet-950/70 dark:text-violet-100">
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ChartCard({ title, children }) {
   return (
     <div className="rounded-lg border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
@@ -350,12 +440,12 @@ function ChartCard({ title, children }) {
   );
 }
 
-function BarRow({ label, value, max }) {
+function BarRow({ label, value, max, prefix = "" }) {
   return (
     <div>
       <div className="mb-1 flex justify-between text-sm">
         <span className="capitalize text-stone-600 dark:text-stone-300">{label}</span>
-        <strong>{value}</strong>
+        <strong>{prefix}{Number(value).toLocaleString()}</strong>
       </div>
       <div className="h-2 rounded-full bg-mist dark:bg-stone-800">
         <div className="h-2 rounded-full bg-meadow" style={{ width: value ? `${Math.max(4, (value / max) * 100)}%` : "0%" }} />
@@ -471,7 +561,7 @@ function ItemTypesPanel({
 function ItemsPanel({ items, filters, setFilters, deleteItem, exportCsv }) {
   const filteredItems = items.filter((item) => {
     const q = filters.search.toLowerCase();
-    const matchesSearch = !q || item.title.toLowerCase().includes(q) || itemTypeOf(item).toLowerCase().includes(q) || item.city.toLowerCase().includes(q);
+    const matchesSearch = !q || item.title.toLowerCase().includes(q) || itemTypeOf(item).toLowerCase().includes(q) || String(item.pincode || "").includes(q);
     const matchesType = !filters.type || itemTypeOf(item) === filters.type;
     const matchesStatus = !filters.status || (filters.status === "low" ? quantityOf(item) > 0 && quantityOf(item) <= 2 : filters.status === "out" ? quantityOf(item) === 0 : quantityOf(item) > 2);
     return matchesSearch && matchesType && matchesStatus;
@@ -486,7 +576,7 @@ function ItemsPanel({ items, filters, setFilters, deleteItem, exportCsv }) {
           <p className="mt-1 text-sm text-stone-500">Manage listed rental inventory and remove items that should no longer be available.</p>
         </div>
         <div className="flex gap-2">
-        <button className="btn-secondary" onClick={() => exportCsv("items.csv", filteredItems.map((item) => ({ title: item.title, type: itemTypeOf(item), city: item.city, quantity: quantityOf(item), rent: item.rent })))}>
+        <button className="btn-secondary" onClick={() => exportCsv("items.csv", filteredItems.map((item) => ({ title: item.title, type: itemTypeOf(item), pincode: item.pincode, quantity: quantityOf(item), rent: item.rent, offer: item.offer || "" })))}>
           Export CSV
         </button>
         <Link href="/add-property" className="btn-primary">
@@ -500,7 +590,7 @@ function ItemsPanel({ items, filters, setFilters, deleteItem, exportCsv }) {
         <table className="w-full text-left text-sm">
           <thead className="bg-mist dark:bg-stone-800">
             <tr>
-              {["Item", "Type", "City", "Qty", "Daily rent", "Status", "Action"].map((header) => (
+              {["Item", "Type", "Pincode", "Qty", "Daily rent", "Status", "Action"].map((header) => (
                 <th key={header} className="px-4 py-3 font-bold">{header}</th>
               ))}
             </tr>
@@ -513,7 +603,7 @@ function ItemsPanel({ items, filters, setFilters, deleteItem, exportCsv }) {
                   <p className="text-xs text-stone-500">{conditionOf(item)} condition</p>
                 </td>
                 <td className="px-4 py-3">{itemTypeOf(item)}</td>
-                <td className="px-4 py-3">{item.city}</td>
+                <td className="px-4 py-3">{item.pincode}</td>
                 <td className="px-4 py-3 font-semibold">{quantityOf(item)}</td>
                 <td className="px-4 py-3">₹{Number(item.rent).toLocaleString()}</td>
                 <td className="px-4 py-3">
@@ -540,70 +630,172 @@ function ItemsPanel({ items, filters, setFilters, deleteItem, exportCsv }) {
   );
 }
 
-function InquiriesPanel({ inquiries, filters, setFilters, updateInquiryStatus, exportCsv }) {
-  const filteredInquiries = inquiries.filter((inquiry) => {
+function BookingsPanel({ bookings, filters, setFilters, updateBookingStatus, updatePaymentStatus, exportCsv }) {
+  const filteredBookings = bookings.filter((booking) => {
     const q = filters.search.toLowerCase();
-    const text = `${inquiry.property?.title || ""} ${inquiry.user?.name || ""} ${inquiry.message || ""}`.toLowerCase();
-    return (!q || text.includes(q)) && (!filters.status || inquiry.status === filters.status) && matchesDate(inquiry.createdAt, filters);
+    const text = `${booking._id || ""} ${booking.property?.title || ""} ${booking.user?.name || ""} ${booking.user?.email || ""} ${booking.paymentStatus || ""}`.toLowerCase();
+    return (!q || text.includes(q)) && (!filters.status || booking.status === filters.status) && matchesDate(booking.createdAt, filters);
   });
 
   return (
-    <section className="rounded-lg border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
+    <section className="rounded-2xl border border-violet-100 bg-white p-5 dark:border-violet-900/70 dark:bg-stone-950/70">
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
         <div>
-          <h2 className="text-lg font-black">Rental requests</h2>
-          <p className="mt-1 text-sm text-stone-500">Manage the request lifecycle. Confirmed rental reserves inventory; returned or closed releases it.</p>
+          <h2 className="text-xl font-black">Booking Requests</h2>
+          <p className="mt-1 text-sm text-stone-500">Approve, reject, complete, and review booking requests with payment details.</p>
         </div>
-        <button className="btn-secondary" onClick={() => exportCsv("rental-requests.csv", filteredInquiries.map((item) => ({ item: item.property?.title, user: item.user?.name, status: statusLabel(item.status), amount: item.totalAmount })))}>
+        <button className="btn-secondary" onClick={() => exportCsv("booking-requests.csv", filteredBookings.map((booking) => ({ id: booking._id, item: booking.property?.title, user: booking.user?.name, status: bookingStatusLabel(booking.status), payment: booking.paymentStatus, amount: booking.finalAmount || booking.totalAmount })))}>
           Export CSV
         </button>
       </div>
-      <AdminFilters showDates filters={filters} setFilters={setFilters} statusOptions={[["", "All statuses"], ...rentalStatusOptions]} />
-      <div className="mt-4 space-y-3">
-        {filteredInquiries.length ? filteredInquiries.map((inquiry) => (
-          <RentalRequestCard key={inquiry._id} request={inquiry} showUser showAvailable onStatusChange={updateInquiryStatus} />
-        )) : <EmptyState title="No matching rental requests" message="Rental requests appear here when users submit date and quantity details." />}
+      <AdminFilters showDates filters={filters} setFilters={setFilters} statusOptions={[["", "All statuses"], ...bookingStatusOptions]} />
+      <div className="mt-4 grid gap-3">
+        {filteredBookings.length ? filteredBookings.map((booking) => (
+          <div key={booking._id} className="rounded-2xl border border-violet-100 bg-mist/80 p-4 text-sm dark:border-violet-900/70 dark:bg-white/10">
+            <div>
+              <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
+                <div>
+                  <strong className="text-base text-ink dark:text-white">{booking.property?.title || "Rental item"}</strong>
+                  <p className="mt-1 text-stone-600 dark:text-stone-300">{booking.user?.name || "Customer"} · {booking.user?.email || "No email"}</p>
+                  <p className="mt-1 text-stone-600 dark:text-stone-300">Booking ID: {booking._id}</p>
+                </div>
+                <div className="flex flex-wrap gap-2 lg:justify-end">
+                  <span className={`rounded-full px-3 py-1 text-xs font-black ${statusTone[booking.status] || "bg-violet-50 text-violet-700"}`}>{bookingStatusLabel(booking.status)}</span>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-violet-700 dark:bg-stone-950 dark:text-violet-100">payment {booking.paymentStatus}</span>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-4">
+                <InfoTile label="Dates" value={`${new Date(booking.startDate).toLocaleDateString()} - ${new Date(booking.endDate).toLocaleDateString()}`} />
+                <InfoTile label="Amount" value={`₹${Number(booking.finalAmount || booking.totalAmount || 0).toLocaleString()}`} />
+                <InfoTile label="Method" value={booking.paymentMethod === "razorpay" ? "Razorpay" : "Cash on Delivery"} />
+                <InfoTile label="Quantity" value={`${booking.quantity || 1} item(s)`} />
+              </div>
+              <p className="mt-3 text-stone-600 dark:text-stone-300">Delivery: {booking.deliveryAddress || "Address shared"}</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto_auto] md:items-center">
+                <select className="field" value={booking.status} onChange={(event) => updateBookingStatus(booking._id, event.target.value)}>
+                  {bookingStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+                <select className="field" value={booking.paymentStatus} onChange={(event) => updatePaymentStatus(booking._id, event.target.value)}>
+                  <option value="pending">payment pending</option>
+                  <option value="paid">paid</option>
+                  <option value="failed">failed</option>
+                  <option value="cancelled">cancelled</option>
+                  <option value="refunded">refunded</option>
+                </select>
+                <button className="btn-primary" type="button" onClick={() => updateBookingStatus(booking._id, "rented")}>Approve</button>
+                <button className="btn-secondary" type="button" onClick={() => updateBookingStatus(booking._id, "closed")}>Reject</button>
+              </div>
+            </div>
+          </div>
+        )) : <EmptyState title="No matching booking requests" message="Booking requests are created when users complete the rental checkout." />}
       </div>
     </section>
   );
 }
 
-function BookingsPanel({ bookings, filters, setFilters, updatePaymentStatus, exportCsv }) {
-  const filteredBookings = bookings.filter((booking) => {
+function InfoTile({ label, value }) {
+  return (
+    <div className="rounded-xl bg-white p-3 dark:bg-stone-950/70">
+      <p className="text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">{label}</p>
+      <p className="mt-1 font-black text-ink dark:text-white">{value}</p>
+    </div>
+  );
+}
+
+function ContactsPanel({ contacts, filters, setFilters, updateContactStatus, deleteContact, exportCsv }) {
+  const [page, setPage] = useState(1);
+  const [sort, setSort] = useState({ key: "createdAt", direction: "desc" });
+  const pageSize = 8;
+  const statusOptions = [["", "All statuses"], ["pending", "Pending"], ["in_progress", "In Progress"], ["resolved", "Resolved"]];
+  const statusLabels = { pending: "Pending", in_progress: "In Progress", resolved: "Resolved" };
+  const statusClasses = {
+    pending: "bg-amber-50 text-amber-700",
+    in_progress: "bg-blue-50 text-blue-700",
+    resolved: "bg-green-50 text-green-700"
+  };
+
+  const filteredContacts = contacts.filter((contact) => {
     const q = filters.search.toLowerCase();
-    const text = `${booking.property?.title || ""} ${booking.user?.name || ""} ${booking.paymentStatus || ""}`.toLowerCase();
-    return (!q || text.includes(q)) && (!filters.status || booking.status === filters.status) && matchesDate(booking.createdAt, filters);
+    const text = `${contact.name} ${contact.email} ${contact.phone || ""} ${contact.subject} ${contact.message}`.toLowerCase();
+    return (!q || text.includes(q)) && (!filters.status || contact.status === filters.status) && matchesDate(contact.createdAt, filters);
+  }).sort((a, b) => {
+    const left = sort.key === "createdAt" ? new Date(a.createdAt).getTime() : String(a[sort.key] || "").localeCompare(String(b[sort.key] || ""));
+    const right = sort.key === "createdAt" ? new Date(b.createdAt).getTime() : 0;
+    const result = sort.key === "createdAt" ? left - right : left;
+    return sort.direction === "asc" ? result : -result;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredContacts.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const visibleContacts = filteredContacts.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const changeSort = (key) => {
+    setSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === "desc" ? "asc" : "desc"
+    }));
+  };
 
   return (
     <section className="rounded-lg border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
         <div>
-          <h2 className="text-lg font-black">Booking records</h2>
-          <p className="mt-1 text-sm text-stone-500">Read-only records created from each rental request for dates, quantity, payment status, and totals.</p>
+          <h2 className="text-lg font-black">Contact Inquiries</h2>
+          <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">Manage website messages, statuses, and follow-ups from one place.</p>
         </div>
-        <button className="btn-secondary" onClick={() => exportCsv("booking-records.csv", filteredBookings.map((booking) => ({ item: booking.property?.title, user: booking.user?.name, status: statusLabel(booking.status), payment: booking.paymentStatus, amount: booking.totalAmount })))}>
+        <button className="btn-secondary" onClick={() => exportCsv("contact-inquiries.csv", filteredContacts.map((contact) => ({
+          name: contact.name,
+          email: contact.email,
+          phone: contact.phone,
+          subject: contact.subject,
+          status: statusLabels[contact.status],
+          submitted: new Date(contact.createdAt).toLocaleString()
+        })))}>
           Export CSV
         </button>
       </div>
-      <AdminFilters showDates filters={filters} setFilters={setFilters} statusOptions={[["", "All statuses"], ...rentalStatusOptions]} />
-      <div className="mt-4 space-y-3">
-        {filteredBookings.length ? filteredBookings.map((booking) => (
-          <div key={booking._id} className="grid gap-3 rounded-lg bg-mist p-3 text-sm dark:bg-stone-800 md:grid-cols-[1fr_180px] md:items-center">
-            <div>
-              <strong>{booking.property?.title}</strong>
-              <p className="text-stone-600 dark:text-stone-300">{booking.user?.name} - {new Date(booking.startDate).toLocaleDateString()} to {new Date(booking.endDate).toLocaleDateString()}</p>
-              <p className="mt-1">₹{Number(booking.totalAmount || 0).toLocaleString()}</p>
-              <p className="mt-1 text-stone-600 dark:text-stone-300">{booking.deliveryOption === "delivery" ? `Delivery: ${booking.deliveryAddress}, ${booking.deliveryDistanceKm} km, ₹${Number(booking.deliveryCharge || 0).toLocaleString()}` : "Pickup selected"}</p>
-              <span className={`mt-2 inline-flex rounded-full px-2 py-1 text-xs font-bold ${statusTone[booking.status]}`}>{statusLabel(booking.status)}</span>
+      <AdminFilters showDates filters={filters} setFilters={(updater) => {
+        setPage(1);
+        setFilters(updater);
+      }} statusOptions={statusOptions} />
+      <div className="mt-5 flex flex-wrap gap-2 text-xs font-bold">
+        {["createdAt", "name", "email", "status"].map((key) => (
+          <button key={key} className="rounded-full border border-stone-200 px-3 py-1 capitalize hover:border-meadow hover:text-meadow dark:border-stone-700" onClick={() => changeSort(key)} type="button">
+            Sort {key === "createdAt" ? "date" : key} {sort.key === key ? sort.direction : ""}
+          </button>
+        ))}
+      </div>
+      <div className="mt-5 space-y-3">
+        {visibleContacts.length ? visibleContacts.map((contact) => (
+          <article key={contact._id} className="rounded-lg bg-mist p-4 text-sm dark:bg-stone-800">
+            <div className="grid gap-4 lg:grid-cols-[1fr_180px_44px] lg:items-start">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base font-black text-ink dark:text-white">{contact.subject}</h3>
+                  <span className={`rounded-full px-2 py-1 text-xs font-bold ${statusClasses[contact.status]}`}>{statusLabels[contact.status]}</span>
+                </div>
+                <p className="mt-1 font-semibold text-stone-700 dark:text-stone-200">{contact.name} - {contact.email}</p>
+                <p className="mt-1 text-stone-600 dark:text-stone-300">{contact.phone || "No phone"} · {contact.topic || "General"} · {new Date(contact.createdAt).toLocaleString()}</p>
+                <p className="mt-3 leading-6 text-stone-700 dark:text-stone-200">{contact.message}</p>
+              </div>
+              <select className="field" value={contact.status} onChange={(event) => updateContactStatus(contact._id, event.target.value)}>
+                <option value="pending">Pending</option>
+                <option value="in_progress">In Progress</option>
+                <option value="resolved">Resolved</option>
+              </select>
+              <button className="rounded-lg p-2 text-stone-500 hover:bg-white hover:text-red-600 dark:text-stone-400 dark:hover:bg-stone-900 dark:hover:text-red-400" onClick={() => deleteContact(contact._id)} aria-label={`Delete ${contact.subject}`} type="button">
+                <Trash2 className="h-4 w-4" />
+              </button>
             </div>
-            <select className="field" value={booking.paymentStatus} onChange={(event) => updatePaymentStatus(booking._id, event.target.value)}>
-              <option value="pending">payment pending</option>
-              <option value="paid">paid</option>
-              <option value="refunded">refunded</option>
-            </select>
-          </div>
-        )) : <EmptyState title="No matching booking records" message="Booking records are created when rental requests are submitted." />}
+          </article>
+        )) : <EmptyState title="No matching contact inquiries" message="Website contact form submissions will appear here." />}
+      </div>
+      <div className="mt-5 flex items-center justify-between gap-3 text-sm">
+        <span className="text-stone-500 dark:text-stone-400">Page {currentPage} of {totalPages} · {filteredContacts.length} result(s)</span>
+        <div className="flex gap-2">
+          <button className="btn-secondary" type="button" disabled={currentPage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</button>
+          <button className="btn-secondary" type="button" disabled={currentPage >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>Next</button>
+        </div>
       </div>
     </section>
   );

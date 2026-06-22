@@ -45,7 +45,8 @@ export default function CartPage() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <Link href={`/properties/${item._id}`} className="text-lg font-black text-ink hover:text-meadow dark:text-white">{item.title}</Link>
-                    <p className="mt-1 text-sm text-violet-950/60 dark:text-violet-100/65">{item.itemType} · {item.city}, {item.state}</p>
+                    <p className="mt-1 text-sm text-violet-950/60 dark:text-violet-100/65">{item.itemType} · Pincode {item.pincode}</p>
+                    {item.offer && <p className="mt-1 text-sm font-bold text-meadow">{item.offer}</p>}
                   </div>
                   <button type="button" onClick={() => removeItem(item._id)} className="inline-flex items-center gap-2 rounded-xl border border-red-100 px-3 py-2 text-xs font-black text-red-600 transition hover:bg-red-50 dark:border-red-900/70 dark:hover:bg-red-950/30">
                     <Trash2 className="h-4 w-4" /> Remove
