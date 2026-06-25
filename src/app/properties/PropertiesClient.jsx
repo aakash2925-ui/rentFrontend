@@ -29,12 +29,12 @@ export default function PropertiesClient() {
   const applyFilters = () => {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => value && params.set(key, value));
-    router.push(`/properties?${params.toString()}`);
+    router.push(`/items?${params.toString()}`);
   };
 
   const clearFilters = () => {
     setFilters({});
-    router.push("/properties");
+    router.push("/items");
   };
 
   return (

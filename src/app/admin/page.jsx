@@ -73,6 +73,7 @@ export default function AdminDashboardPage() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [filters, setFilters] = useState({ search: "", status: "", type: "", role: "", dateFrom: "", dateTo: "" });
+  const [logPagination, setLogPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
   const [voucherForm, setVoucherForm] = useState(emptyVoucherForm);
   const [editingVoucher, setEditingVoucher] = useState(null);
   const { showToast } = useToast();
@@ -84,7 +85,7 @@ export default function AdminDashboardPage() {
       api.get("/admin/properties"),
       api.get("/bookings"),
       api.get("/contact?limit=50"),
-      api.get("/admin/activity-logs"),
+      api.get("/admin/activity-logs", { params: { page: 1, limit: 10 } }),
       api.get("/item-types"),
       api.get("/vouchers")
     ])
@@ -99,6 +100,7 @@ export default function AdminDashboardPage() {
           itemTypes: itemTypes.data.itemTypes,
           vouchers: vouchers.data.vouchers
         });
+        setLogPagination(logs.data.pagination || { page: 1, limit: 10, total: logs.data.logs.length, totalPages: 1 });
       })
       .catch(() => setError("Unable to load admin dashboard"))
       .finally(() => setLoading(false));
@@ -258,18 +260,32 @@ export default function AdminDashboardPage() {
     }));
   };
 
+  const loadActivityLogs = async ({ page = logPagination.page, nextFilters = filters } = {}) => {
+    const { data: logs } = await api.get("/admin/activity-logs", {
+      params: {
+        page,
+        limit: logPagination.limit,
+        search: nextFilters.search || undefined,
+        dateFrom: nextFilters.dateFrom || undefined,
+        dateTo: nextFilters.dateTo || undefined
+      }
+    });
+    setData((current) => ({ ...current, logs: logs.logs }));
+    setLogPagination(logs.pagination || { page, limit: logPagination.limit, total: logs.logs.length, totalPages: 1 });
+    return logs;
+  };
+
   const updateBookingStatus = async (id, status) => {
     try {
       const { data: response } = await api.put(`/bookings/${id}/status`, { status });
-      const [{ data: properties }, { data: logs }] = await Promise.all([
+      const [{ data: properties }] = await Promise.all([
         api.get("/admin/properties"),
-        api.get("/admin/activity-logs")
+        loadActivityLogs()
       ]);
       setData((current) => ({
         ...current,
         bookings: current.bookings.map((booking) => booking._id === id ? { ...booking, status: response.booking.status, inventoryReserved: response.booking.inventoryReserved } : booking),
-        properties: properties.properties,
-        logs: logs.logs
+        properties: properties.properties
       }));
       showToast("Booking request status updated");
     } catch (err) {
@@ -304,11 +320,10 @@ export default function AdminDashboardPage() {
   const updatePaymentStatus = async (id, paymentStatus) => {
     try {
       const { data: response } = await api.put(`/bookings/${id}/payment-status`, { paymentStatus });
-      const { data: logs } = await api.get("/admin/activity-logs");
+      await loadActivityLogs();
       setData((current) => ({
         ...current,
-        bookings: current.bookings.map((booking) => booking._id === id ? { ...booking, paymentStatus: response.booking.paymentStatus } : booking),
-        logs: logs.logs
+        bookings: current.bookings.map((booking) => booking._id === id ? { ...booking, paymentStatus: response.booking.paymentStatus } : booking)
       }));
       showToast("Payment status updated");
     } catch (err) {
@@ -319,11 +334,10 @@ export default function AdminDashboardPage() {
   const updateContactStatus = async (id, status) => {
     try {
       const { data: response } = await api.put(`/contact/${id}/status`, { status });
-      const { data: logs } = await api.get("/admin/activity-logs");
+      await loadActivityLogs();
       setData((current) => ({
         ...current,
-        contacts: current.contacts.map((contact) => contact._id === id ? response.contact : contact),
-        logs: logs.logs
+        contacts: current.contacts.map((contact) => contact._id === id ? response.contact : contact)
       }));
       showToast("Contact status updated");
     } catch (err) {
@@ -335,11 +349,10 @@ export default function AdminDashboardPage() {
     if (!window.confirm("Delete this contact inquiry?")) return;
     try {
       await api.delete(`/contact/${id}`);
-      const { data: logs } = await api.get("/admin/activity-logs");
+      await loadActivityLogs();
       setData((current) => ({
         ...current,
-        contacts: current.contacts.filter((contact) => contact._id !== id),
-        logs: logs.logs
+        contacts: current.contacts.filter((contact) => contact._id !== id)
       }));
       showToast("Contact inquiry deleted");
     } catch (err) {
@@ -384,7 +397,7 @@ export default function AdminDashboardPage() {
                 onLogout={signOut}
                 onSelect={selectTask}
                 user={user}
-                footer={<Link href="/add-property" className="btn-primary w-full"><PackagePlus className="h-4 w-4" /> Add Item</Link>}
+                footer={<Link href="/add-item" className="btn-primary w-full"><PackagePlus className="h-4 w-4" /> Add Item</Link>}
               />
 
               <section className="min-w-0 rounded-[1.5rem] border border-violet-100 bg-white/90 p-4 shadow-soft dark:border-violet-900/70 dark:bg-white/10 md:p-6">
@@ -413,7 +426,7 @@ export default function AdminDashboardPage() {
               {activeTask === "vouchers" && <VouchersPanel vouchers={data.vouchers} voucherForm={voucherForm} setVoucherForm={setVoucherForm} editingVoucher={editingVoucher} saveVoucher={saveVoucher} startEditVoucher={startEditVoucher} resetVoucherForm={resetVoucherForm} deleteVoucher={deleteVoucher} exportCsv={exportCsv} />}
               {activeTask === "bookings" && <BookingsPanel bookings={data.bookings} filters={filters} setFilters={setFilters} updateBookingStatus={updateBookingStatus} updatePaymentStatus={updatePaymentStatus} exportCsv={exportCsv} />}
               {activeTask === "contacts" && <ContactsPanel contacts={data.contacts} filters={filters} setFilters={setFilters} updateContactStatus={updateContactStatus} deleteContact={deleteContact} exportCsv={exportCsv} />}
-              {activeTask === "activity" && <ActivityPanel logs={data.logs} filters={filters} setFilters={setFilters} exportCsv={exportCsv} />}
+              {activeTask === "activity" && <ActivityPanel logs={data.logs} pagination={logPagination} filters={filters} setFilters={setFilters} loadActivityLogs={loadActivityLogs} exportCsv={exportCsv} />}
               {activeTask === "users" && <UsersPanel users={data.users} filters={filters} setFilters={setFilters} updateUserRole={updateUserRole} exportCsv={exportCsv} />}
               </section>
             </div>
@@ -655,7 +668,7 @@ function ItemsPanel({ items, filters, setFilters, deleteItem, exportCsv }) {
         <button className="btn-secondary" onClick={() => exportCsv("items.csv", filteredItems.map((item) => ({ title: item.title, type: itemTypeOf(item), pincode: item.pincode, quantity: quantityOf(item), rent: item.rent, offer: item.offer || "" })))}>
           Export CSV
         </button>
-        <Link href="/add-property" className="btn-primary">
+        <Link href="/add-item" className="btn-primary">
           <PackagePlus className="h-4 w-4" />
           Add Item
         </Link>
@@ -700,7 +713,7 @@ function ItemsPanel({ items, filters, setFilters, deleteItem, exportCsv }) {
             )) : null}
           </tbody>
         </table>
-        {!filteredItems.length && <div className="p-4"><EmptyState title="No matching items" message="Adjust search or filters to find inventory." actionHref="/add-property" actionLabel="Add item" /></div>}
+        {!filteredItems.length && <div className="p-4"><EmptyState title="No matching items" message="Adjust search or filters to find inventory." actionHref="/add-item" actionLabel="Add item" /></div>}
       </div>
     </section>
   );
@@ -853,10 +866,12 @@ function BookingsPanel({ bookings, filters, setFilters, updateBookingStatus, upd
                   <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-violet-700 dark:bg-stone-950 dark:text-violet-100">payment {booking.paymentStatus}</span>
                 </div>
               </div>
-              <div className="mt-4 grid gap-3 md:grid-cols-4">
+              <div className="mt-4 grid gap-3 md:grid-cols-6">
                 <InfoTile label="Dates" value={`${new Date(booking.startDate).toLocaleDateString()} - ${new Date(booking.endDate).toLocaleDateString()}`} />
                 <InfoTile label="Amount" value={`₹${Number(booking.finalAmount || booking.totalAmount || 0).toLocaleString()}`} />
                 <InfoTile label="Method" value={booking.paymentMethod === "razorpay" ? "Razorpay" : "Cash on Delivery"} />
+                <InfoTile label="Delivery date" value={booking.deliveryDate ? new Date(booking.deliveryDate).toLocaleDateString() : "-"} />
+                <InfoTile label="Delivery time" value={booking.deliveryEta || (booking.deliverySpeed === "fast" ? "Within 2 hours" : "Within 24 hours")} />
                 <InfoTile label="Quantity" value={`${booking.quantity || 1} item(s)`} />
               </div>
               <p className="mt-3 text-stone-600 dark:text-stone-300">Delivery: {booking.deliveryAddress || "Address shared"}</p>
@@ -990,12 +1005,30 @@ function ContactsPanel({ contacts, filters, setFilters, updateContactStatus, del
   );
 }
 
-function ActivityPanel({ logs, filters, setFilters, exportCsv }) {
-  const filteredLogs = logs.filter((log) => {
-    const q = filters.search.toLowerCase();
-    const text = `${log.actor?.name || ""} ${log.action} ${log.message}`.toLowerCase();
-    return (!q || text.includes(q)) && matchesDate(log.createdAt, filters);
-  });
+function ActivityPanel({ logs, pagination, filters, setFilters, loadActivityLogs, exportCsv }) {
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const currentPage = pagination.page || 1;
+  const totalPages = pagination.totalPages || 1;
+
+  const updateLogFilters = async (updater) => {
+    const nextFilters = typeof updater === "function" ? updater(filters) : updater;
+    setFilters(nextFilters);
+    setLoadingLogs(true);
+    try {
+      await loadActivityLogs({ page: 1, nextFilters });
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  const changePage = async (page) => {
+    setLoadingLogs(true);
+    try {
+      await loadActivityLogs({ page });
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
 
   return (
     <section className="rounded-lg border border-stone-200 bg-white p-5 dark:border-stone-800 dark:bg-stone-900">
@@ -1004,19 +1037,29 @@ function ActivityPanel({ logs, filters, setFilters, exportCsv }) {
           <h2 className="text-lg font-black">Activity logs</h2>
           <p className="mt-1 text-sm text-stone-500">Audit trail for admin actions like role changes, status updates, and item edits.</p>
         </div>
-        <button className="btn-secondary" onClick={() => exportCsv("activity-logs.csv", filteredLogs.map((log) => ({ actor: log.actor?.name, action: log.action, message: log.message, date: log.createdAt })))}>
+        <button className="btn-secondary" onClick={() => exportCsv("activity-logs-page.csv", logs.map((log) => ({ actor: log.actor?.name, action: log.action, message: log.message, date: log.createdAt })))}>
           Export CSV
         </button>
       </div>
-      <AdminFilters showDates filters={filters} setFilters={setFilters} />
+      <AdminFilters showDates filters={filters} setFilters={updateLogFilters} />
       <div className="mt-4 space-y-3">
-        {filteredLogs.length ? filteredLogs.map((log) => (
+        {loadingLogs && <div className="rounded-lg bg-violet-50 p-3 text-sm font-bold text-violet-700 dark:bg-violet-950/40 dark:text-violet-100">Loading activity logs...</div>}
+        {!loadingLogs && logs.length ? logs.map((log) => (
           <div key={log._id} className="rounded-lg bg-mist p-3 text-sm dark:bg-stone-800">
             <strong>{log.action}</strong>
             <p className="mt-1 text-stone-600 dark:text-stone-300">{log.message}</p>
             <p className="mt-1 text-xs text-stone-500">{log.actor?.name || "System"} - {new Date(log.createdAt).toLocaleString()}</p>
           </div>
-        )) : <EmptyState title="No matching activity" message="Admin actions will appear here." />}
+        )) : !loadingLogs && <EmptyState title="No matching activity" message="Admin actions will appear here." />}
+      </div>
+      <div className="mt-5 flex flex-col justify-between gap-3 text-sm sm:flex-row sm:items-center">
+        <span className="text-stone-500 dark:text-stone-400">
+          Page {currentPage} of {totalPages} · {pagination.total || 0} result(s)
+        </span>
+        <div className="flex gap-2">
+          <button className="btn-secondary" type="button" disabled={loadingLogs || currentPage <= 1} onClick={() => changePage(Math.max(1, currentPage - 1))}>Previous</button>
+          <button className="btn-secondary" type="button" disabled={loadingLogs || currentPage >= totalPages} onClick={() => changePage(Math.min(totalPages, currentPage + 1))}>Next</button>
+        </div>
       </div>
     </section>
   );

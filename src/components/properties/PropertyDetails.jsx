@@ -14,7 +14,6 @@ export default function PropertyDetails({ property }) {
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <h1 className="text-3xl font-black leading-tight text-ink dark:text-stone-50 md:text-4xl">{property.title}</h1>
-            <p className="mt-3 flex items-center gap-2 text-stone-600 dark:text-stone-300"><MapPin className="h-4 w-4 text-meadow" /> Doorstep delivery available for pincode {property.pincode}</p>
           </div>
           <div className="rounded-2xl bg-mist px-4 py-3 text-sm font-black text-ink dark:bg-white/10 dark:text-white">
             <span className="flex items-center gap-1 text-clay"><Star className="h-4 w-4 fill-current" /> Ratings</span>

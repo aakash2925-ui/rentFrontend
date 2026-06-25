@@ -17,7 +17,7 @@ export default function RentalRequestCard({ request, onStatusChange, showUser = 
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             {item?._id ? (
-              <Link href={`/properties/${item._id}`} className="text-base font-black hover:text-meadow">
+              <Link href={`/items/${item._id}`} className="text-base font-black hover:text-meadow">
                 {item.title}
               </Link>
             ) : (
@@ -50,7 +50,7 @@ export default function RentalRequestCard({ request, onStatusChange, showUser = 
         <div className="flex items-start gap-2">
           {isDelivery ? <Truck className="mt-0.5 h-4 w-4 text-meadow" /> : <MapPin className="mt-0.5 h-4 w-4 text-meadow" />}
           <div>
-            <strong>{isDelivery ? "Delivery requested" : "Pickup selected"}</strong>
+            <strong>{isDelivery ? `Delivery requested · ${request.deliveryDate ? formatDate(request.deliveryDate) : "Date pending"} · ${request.deliveryEta || (request.deliverySpeed === "fast" ? "Within 2 hours" : "Within 24 hours")}` : "Pickup selected"}</strong>
             <p className="mt-1 text-stone-600 dark:text-stone-300">
               {isDelivery
                 ? request.deliveryAddress || "No address"

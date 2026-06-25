@@ -26,7 +26,7 @@ export default function HeroSection() {
             Rent projectors, speakers, cameras, luggage, fashion and more — delivered to your doorstep.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
-            <Link href="/properties" className="btn-primary px-5 py-3">
+            <Link href="/items" className="btn-primary px-5 py-3">
               Rent Now <ArrowRight className="h-4 w-4" />
             </Link>
             <Link href="#browse-categories" className="btn-secondary px-5 py-3">

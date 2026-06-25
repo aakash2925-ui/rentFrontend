@@ -19,6 +19,12 @@ function toDateInputValue(date) {
   return localDate.toISOString().slice(0, 10);
 }
 
+function addDays(date, days) {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
+}
+
 function loadRazorpay() {
   return new Promise((resolve, reject) => {
     if (window.Razorpay) return resolve();
@@ -42,12 +48,14 @@ export default function InquiryForm({ property }) {
     mobileNumber: user?.phone || "",
     startDate: "",
     endDate: "",
+    deliveryDate: "",
     houseFlatNo: "",
     streetArea: "",
     landmark: "",
     city: "",
     state: "",
     pincode: "",
+    deliverySpeed: "standard",
     paymentMethod: "cod",
     message: `Hi, I want to rent ${property.title}.`
   });
@@ -68,6 +76,7 @@ export default function InquiryForm({ property }) {
 
   const rentalDays = rentalDaysBetween(form.startDate, form.endDate);
   const today = useMemo(() => toDateInputValue(new Date()), []);
+  const maxDeliveryDate = useMemo(() => toDateInputValue(addDays(new Date(), 5)), []);
   const selectedQuantity = 1;
   const deliveryDistanceKm = 0;
   const availableQuantity = quantityOf(property);
@@ -78,10 +87,11 @@ export default function InquiryForm({ property }) {
     quantity: selectedQuantity,
     rentalDays,
     deliveryDistanceKm,
+    deliverySpeed: form.deliverySpeed,
     voucherCode: appliedVoucherCode,
     voucherDiscountAmount: appliedVoucher?.discountAmount || 0,
     voucherMessage: appliedVoucher?.message || ""
-  }), [property.rent, property.deposit, selectedQuantity, rentalDays, deliveryDistanceKm, appliedVoucherCode, appliedVoucher]);
+  }), [property.rent, property.deposit, selectedQuantity, rentalDays, deliveryDistanceKm, form.deliverySpeed, appliedVoucherCode, appliedVoucher]);
 
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
@@ -125,7 +135,8 @@ export default function InquiryForm({ property }) {
         startDate: form.startDate,
         endDate: form.endDate,
         quantity: selectedQuantity,
-        deliveryDistanceKm
+        deliveryDistanceKm,
+        deliverySpeed: form.deliverySpeed
       });
       setAppliedVoucherCode(data.voucher.code);
       setAppliedVoucher(data.voucher);
@@ -163,8 +174,10 @@ export default function InquiryForm({ property }) {
     if (!user) return "Please login before booking this item.";
     if (!form.startDate) return "Start date is required.";
     if (!form.endDate) return "End date is required.";
+    if (!form.deliveryDate) return "Delivery date is required.";
     if (form.startDate < today) return "Start date cannot be before today.";
     if (form.endDate < form.startDate) return "End date cannot be before start date.";
+    if (form.deliveryDate < today || form.deliveryDate > maxDeliveryDate) return "Delivery date should be within the next 5 days.";
     if (rentalDays < minRentalDays) return `Minimum rental duration is ${minRentalDays} day(s).`;
     if (availableQuantity < 1) return "This item is currently out of stock.";
     if (targetStep >= 1) {
@@ -178,7 +191,7 @@ export default function InquiryForm({ property }) {
       if (availability.status !== "available") return "Check PIN code availability before proceeding to payment.";
     }
     return "";
-  }, [availableQuantity, availability.status, form.city, form.endDate, form.fullName, form.houseFlatNo, form.mobileNumber, form.pincode, form.startDate, form.state, form.streetArea, minRentalDays, rentalDays, step, today, user]);
+  }, [availableQuantity, availability.status, form.city, form.deliveryDate, form.endDate, form.fullName, form.houseFlatNo, form.mobileNumber, form.pincode, form.startDate, form.state, form.streetArea, maxDeliveryDate, minRentalDays, rentalDays, step, today, user]);
 
   useEffect(() => {
     setError("");
@@ -331,6 +344,7 @@ export default function InquiryForm({ property }) {
     phone: form.mobileNumber,
     startDate: form.startDate,
     endDate: form.endDate,
+    deliveryDate: form.deliveryDate,
     quantity: selectedQuantity,
     houseFlatNo: form.houseFlatNo,
     streetArea: form.streetArea,
@@ -340,6 +354,7 @@ export default function InquiryForm({ property }) {
     pincode: form.pincode,
     deliveryAddress,
     deliveryDistanceKm: 0,
+    deliverySpeed: form.deliverySpeed,
     voucherCode: appliedVoucherCode,
     message: form.message
   };
@@ -480,6 +495,53 @@ export default function InquiryForm({ property }) {
                 <span className="text-sm font-black text-violet-950 dark:text-white">End date</span>
                 <input className="field" type="date" min={form.startDate || today} required value={form.endDate} onChange={(e) => updateEndDate(e.target.value)} />
               </label>
+            </div>
+            <div className="rounded-[1.35rem] border border-violet-100 bg-white/90 p-4 shadow-sm dark:border-violet-900/70 dark:bg-stone-950/40">
+              <div className="flex items-center gap-2 text-sm font-black text-meadow">
+                <Truck className="h-4 w-4" /> Delivery details
+              </div>
+              <p className="mt-1 text-xs font-semibold text-violet-950/55 dark:text-violet-100/60">Choose your delivery day within the next 5 days. Standard delivery is free within 24 hours.</p>
+              <label className="mt-4 block space-y-2">
+                <span className="text-sm font-black text-violet-950 dark:text-white">Delivery date <span className="text-clay">*</span></span>
+                <input
+                  className="field"
+                  type="date"
+                  min={today}
+                  max={maxDeliveryDate}
+                  required
+                  value={form.deliveryDate}
+                  onChange={(e) => update("deliveryDate", e.target.value)}
+                />
+              </label>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {[
+                  ["standard", "Standard delivery", "Within 24 hours", "Free"],
+                  ["fast", "Fast delivery", "Within 2 hours", "₹199"]
+                ].map(([value, title, eta, price]) => (
+                  <label key={value} className={`cursor-pointer rounded-2xl border p-4 transition ${
+                    form.deliverySpeed === value
+                      ? "border-meadow bg-meadow/10 shadow-soft"
+                      : "border-violet-100 bg-mist/70 hover:border-violet-300 dark:border-violet-900/70 dark:bg-white/10"
+                  }`}>
+                    <input
+                      className="sr-only"
+                      type="radio"
+                      name="deliverySpeed"
+                      checked={form.deliverySpeed === value}
+                      onChange={() => update("deliverySpeed", value)}
+                    />
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-black text-ink dark:text-white">{title}</p>
+                        <p className="mt-1 text-sm font-semibold text-violet-950/60 dark:text-violet-100/65">{eta}</p>
+                      </div>
+                      <span className={`rounded-full px-3 py-1 text-xs font-black ${value === "fast" ? "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-100" : "bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-200"}`}>
+                        {price}
+                      </span>
+                    </div>
+                  </label>
+                ))}
+              </div>
             </div>
             <div className="rounded-[1.35rem] border border-violet-100 bg-white/90 p-4 shadow-sm dark:border-violet-900/70 dark:bg-stone-950/40">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
@@ -681,7 +743,9 @@ export default function InquiryForm({ property }) {
             <SummaryRow label="Item" value={property.title} />
             <SummaryRow label="Dates" value={`${form.startDate || "-"} to ${form.endDate || "-"}`} />
             <SummaryRow label="Rental days" value={rentalDays || "-"} />
+            <SummaryRow label="Delivery date" value={form.deliveryDate || "-"} />
             <SummaryRow label="Deliver to" value={deliveryAddress || "-"} />
+            <SummaryRow label="Delivery time" value={pricing.delivery?.eta || "Within 24 hours"} />
             <SummaryRow label="Payment" value={form.paymentMethod === "cod" ? "Cash on Delivery" : "Razorpay"} />
             <PriceBreakdown pricing={pricing} rentalDays={rentalDays} deposit={property.deposit} compact />
             <textarea className="field min-h-24" placeholder="Message" required value={form.message} onChange={(e) => update("message", e.target.value)} />
@@ -715,7 +779,7 @@ function PriceBreakdown({ pricing, rentalDays, deposit, compact = false }) {
       <SummaryRow label={`Discount (${pricing.discountPercentage}%)`} value={`-₹${pricing.discountAmount.toLocaleString()}`} />
       {pricing.voucherDiscountAmount > 0 && <SummaryRow label={`Voucher (${pricing.voucher.code})`} value={`-₹${pricing.voucherDiscountAmount.toLocaleString()}`} />}
       <SummaryRow label="Refundable deposit" value={`₹${Number(deposit || 0).toLocaleString()}`} />
-      {pricing.deliveryCharge > 0 && <SummaryRow label="Delivery" value={`₹${pricing.deliveryCharge.toLocaleString()}`} />}
+      <SummaryRow label={`Delivery (${pricing.delivery?.eta || "Within 24 hours"})`} value={pricing.deliveryCharge > 0 ? `₹${pricing.deliveryCharge.toLocaleString()}` : "Free"} />
       <div className="mt-3 flex justify-between border-t border-violet-100 pt-3 text-base dark:border-violet-900/70"><span className="font-black">Final payable</span><strong className="text-meadow">₹{pricing.finalAmount.toLocaleString()}</strong></div>
       {(pricing.discountAmount + pricing.voucherDiscountAmount) > 0 && <p className="mt-3 rounded-xl bg-green-50 px-3 py-2 text-sm font-black text-green-700 dark:bg-green-950/40 dark:text-green-200"><IndianRupee className="mr-1 inline h-4 w-4" /> You save ₹{(pricing.discountAmount + pricing.voucherDiscountAmount).toLocaleString()} on this booking.</p>}
     </div>

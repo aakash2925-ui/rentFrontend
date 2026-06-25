@@ -16,7 +16,7 @@ export default function CartPage() {
         </div>
         <h1 className="mt-5 text-3xl font-black text-ink dark:text-white">Your cart is empty</h1>
         <p className="mt-2 text-violet-950/65 dark:text-violet-100/70">Add projectors, speakers, cameras, luggage, or fashion items to plan your rental.</p>
-        <Link href="/properties" className="btn-primary mt-6">Browse items</Link>
+        <Link href="/items" className="btn-primary mt-6">Browse items</Link>
       </div>
     );
   }
@@ -38,13 +38,13 @@ export default function CartPage() {
         <section className="space-y-4">
           {items.map((item) => (
             <article key={item._id} className="grid gap-4 rounded-2xl border border-violet-100 bg-white/85 p-4 shadow-sm dark:border-violet-900/70 dark:bg-white/10 sm:grid-cols-[132px_1fr]">
-              <Link href={`/properties/${item._id}`} className="overflow-hidden rounded-xl bg-mist">
+              <Link href={`/items/${item._id}`} className="overflow-hidden rounded-xl bg-mist">
                 <img src={uploadUrl(item.images?.[0])} alt={item.title} className="h-32 w-full object-cover transition hover:scale-105" />
               </Link>
               <div className="min-w-0">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <Link href={`/properties/${item._id}`} className="text-lg font-black text-ink hover:text-meadow dark:text-white">{item.title}</Link>
+                    <Link href={`/items/${item._id}`} className="text-lg font-black text-ink hover:text-meadow dark:text-white">{item.title}</Link>
                     <p className="mt-1 text-sm text-violet-950/60 dark:text-violet-100/65">{item.itemType} · Pincode {item.pincode}</p>
                     {item.offer && <p className="mt-1 text-sm font-bold text-meadow">{item.offer}</p>}
                   </div>
@@ -63,7 +63,7 @@ export default function CartPage() {
                   </div>
                 </div>
                 <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
-                  <Link href={`/properties/${item._id}`} className="btn-primary">Proceed to Checkout</Link>
+                  <Link href={`/items/${item._id}`} className="btn-primary">Proceed to Checkout</Link>
                 </div>
               </div>
             </article>
@@ -80,7 +80,7 @@ export default function CartPage() {
               <p className="text-violet-950/60 dark:text-violet-100/65">Final rental amount depends on rental dates, delivery option, and admin confirmation.</p>
             </div>
           </div>
-          <Link href="/properties" className="btn-secondary mt-5 w-full">Add more items</Link>
+          <Link href="/items" className="btn-secondary mt-5 w-full">Add more items</Link>
         </aside>
       </div>
     </div>
