@@ -866,11 +866,10 @@ function BookingsPanel({ bookings, filters, setFilters, updateBookingStatus, upd
                   <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-violet-700 dark:bg-stone-950 dark:text-violet-100">payment {booking.paymentStatus}</span>
                 </div>
               </div>
-              <div className="mt-4 grid gap-3 md:grid-cols-6">
+              <div className="mt-4 grid gap-3 md:grid-cols-5">
                 <InfoTile label="Dates" value={`${new Date(booking.startDate).toLocaleDateString()} - ${new Date(booking.endDate).toLocaleDateString()}`} />
                 <InfoTile label="Amount" value={`₹${Number(booking.finalAmount || booking.totalAmount || 0).toLocaleString()}`} />
                 <InfoTile label="Method" value={booking.paymentMethod === "razorpay" ? "Razorpay" : "Cash on Delivery"} />
-                <InfoTile label="Delivery date" value={booking.deliveryDate ? new Date(booking.deliveryDate).toLocaleDateString() : "-"} />
                 <InfoTile label="Delivery time" value={booking.deliveryEta || (booking.deliverySpeed === "fast" ? "Within 2 hours" : "Within 24 hours")} />
                 <InfoTile label="Quantity" value={`${booking.quantity || 1} item(s)`} />
               </div>
