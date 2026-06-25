@@ -27,15 +27,10 @@ export default function PropertyFilterSidebar({ filters, setFilters, applyFilter
           <option value="">Item type</option>
           {itemTypes.map((type) => <option key={type._id} value={type.name}>{type.name}</option>)}
         </select>
-        <select className="field" value={filters.bedrooms || ""} onChange={(e) => update("bedrooms", e.target.value)}>
-          <option value="">Quantity</option>
-          {[1, 2, 3, 4].map((item) => <option key={item} value={item}>{item}+</option>)}
-        </select>
         <select className="field" value={filters.sort || "newest"} onChange={(e) => update("sort", e.target.value)}>
           <option value="newest">Newest</option>
           <option value="rent-low">Rent: Low to high</option>
           <option value="rent-high">Rent: High to low</option>
-          <option value="bedrooms">Highest quantity</option>
         </select>
         <div className="grid gap-2">
           <button className="btn-primary w-full" onClick={applyFilters}>Apply filters</button>

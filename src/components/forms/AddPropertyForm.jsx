@@ -18,6 +18,7 @@ const initial = {
   deposit: "",
   itemType: "",
   pincode: "",
+  serviceablePincodes: [],
   quantity: 1,
   minRentalDays: 1,
   condition: "Good",
@@ -37,6 +38,8 @@ export default function AddPropertyForm({ itemId }) {
   const [newImages, setNewImages] = useState([]);
   const [existingImages, setExistingImages] = useState([]);
   const [itemTypes, setItemTypes] = useState([]);
+  const [pinInput, setPinInput] = useState("");
+  const [pinSearch, setPinSearch] = useState("");
   const [error, setError] = useState("");
   const [imageError, setImageError] = useState("");
   const [success, setSuccess] = useState("");
@@ -74,6 +77,7 @@ export default function AddPropertyForm({ itemId }) {
           deposit: item.deposit || "",
           itemType: itemTypeOf(item),
           pincode: item.pincode || "",
+          serviceablePincodes: item.serviceablePincodes?.length ? item.serviceablePincodes : (item.pincode ? [item.pincode] : []),
           quantity: quantityOf(item),
           minRentalDays: minRentalDaysOf(item),
           condition: conditionOf(item),
@@ -88,6 +92,23 @@ export default function AddPropertyForm({ itemId }) {
   }, [itemId]);
 
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+
+  const addServicePin = (pin = pinInput) => {
+    const value = String(pin || "").trim();
+    if (!/^\d{6}$/.test(value)) {
+      showToast("Enter a valid 6-digit PIN code", "error");
+      return;
+    }
+    setForm((current) => {
+      if (current.serviceablePincodes.includes(value)) return current;
+      return { ...current, serviceablePincodes: [...current.serviceablePincodes, value] };
+    });
+    setPinInput("");
+  };
+
+  const removeServicePin = (pin) => {
+    setForm((current) => ({ ...current, serviceablePincodes: current.serviceablePincodes.filter((item) => item !== pin) }));
+  };
 
   const validateImages = (files) => {
     const valid = [];
@@ -131,7 +152,10 @@ export default function AddPropertyForm({ itemId }) {
     if (Number(form.rent) < 0 || Number(form.deposit) < 0) return "Rent and deposit cannot be negative.";
     if (Number(form.quantity) < 0) return "Quantity cannot be negative.";
     if (Number(form.minRentalDays) < 1) return "Minimum rental days must be at least 1.";
-    if (!/^\d{4,10}$/.test(String(form.pincode).trim())) return "Enter a valid pincode.";
+    if (!/^\d{6}$/.test(String(form.pincode).trim())) return "Enter a valid 6-digit pincode.";
+    const servicePins = [...new Set([...form.serviceablePincodes, form.pincode].filter(Boolean))];
+    if (!servicePins.length) return "Add at least one serviceable pincode.";
+    if (servicePins.some((pin) => !/^\d{6}$/.test(pin))) return "Serviceable pincodes must be 6 digits.";
     if (!existingImages.length && !newImages.length) return "Upload at least one item photo.";
     return "";
   };
@@ -149,7 +173,10 @@ export default function AddPropertyForm({ itemId }) {
 
     setLoading(true);
     const data = new FormData();
-    Object.entries(form).forEach(([key, value]) => data.append(key, value));
+    Object.entries(form).forEach(([key, value]) => {
+      if (key === "serviceablePincodes") data.append(key, JSON.stringify([...new Set([...value, form.pincode].filter(Boolean))]));
+      else data.append(key, value);
+    });
     data.append("existingImages", JSON.stringify(existingImages));
     newImages.forEach((file) => data.append("images", file));
 
@@ -247,10 +274,32 @@ export default function AddPropertyForm({ itemId }) {
         </Field>
       </Section>
 
-      <Section icon={MapPin} title="Delivery Location" description="Serviceable delivery pincode for this item.">
-        <Field label="Pincode" required className="md:col-span-2">
-          <input className="field" inputMode="numeric" pattern="[0-9]{4,10}" placeholder="560001" required value={form.pincode} onChange={(e) => update("pincode", e.target.value)} />
+      <Section icon={MapPin} title="Serviceable PIN Codes" description="Assign all PIN codes where this item can be delivered or rented.">
+        <Field label="Primary PIN Code" required className="md:col-span-2">
+          <input className="field" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} placeholder="560001" required value={form.pincode} onChange={(e) => update("pincode", e.target.value.replace(/\D/g, "").slice(0, 6))} />
         </Field>
+        <div className="md:col-span-2 rounded-2xl border border-violet-100 bg-mist/70 p-4 dark:border-violet-900/70 dark:bg-white/10">
+          <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+            <input className="field" inputMode="numeric" maxLength={6} placeholder="Add serviceable PIN code" value={pinInput} onChange={(event) => setPinInput(event.target.value.replace(/\D/g, "").slice(0, 6))} />
+            <button className="btn-primary" type="button" onClick={() => addServicePin()}>Add PIN</button>
+          </div>
+          <input className="field mt-3" placeholder="Search PIN codes" value={pinSearch} onChange={(event) => setPinSearch(event.target.value)} />
+          <div className="mt-3 flex max-h-40 flex-wrap gap-2 overflow-y-auto">
+            {[...new Set([...form.serviceablePincodes, form.pincode].filter(Boolean))]
+              .filter((pin) => !pinSearch || pin.includes(pinSearch.trim()))
+              .map((pin) => (
+                <span key={pin} className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-sm font-black text-violet-800 shadow-sm dark:bg-stone-950 dark:text-violet-100">
+                  {pin}
+                  {pin === form.pincode ? (
+                    <span className="text-xs text-meadow">primary</span>
+                  ) : (
+                    <button className="text-red-500" type="button" onClick={() => removeServicePin(pin)} aria-label={`Remove ${pin}`}>x</button>
+                  )}
+                </span>
+              ))}
+          </div>
+          <p className="mt-3 text-xs font-semibold text-violet-950/55 dark:text-violet-100/60">Primary PIN is included automatically. Duplicate PIN codes are ignored.</p>
+        </div>
       </Section>
 
       <Section icon={Tags} title="Accessories" description="List anything included with the rental item.">

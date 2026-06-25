@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
+import { ShoppingCart, Trash2 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { uploadUrl } from "@/lib/api";
 
 export default function CartPage() {
-  const { items, count, totalDailyRent, totalDeposit, removeItem, updateQuantity, clearCart } = useCart();
+  const { items, count, totalDailyRent, totalDeposit, removeItem, clearCart } = useCart();
 
   if (!items.length) {
     return (
@@ -52,7 +52,7 @@ export default function CartPage() {
                     <Trash2 className="h-4 w-4" /> Remove
                   </button>
                 </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div className="rounded-xl bg-mist p-3 text-sm dark:bg-white/10">
                     <span className="text-violet-950/60 dark:text-violet-100/65">Daily rent</span>
                     <strong className="mt-1 block text-ink dark:text-white">₹{Number(item.rent).toLocaleString()}</strong>
@@ -61,22 +61,9 @@ export default function CartPage() {
                     <span className="text-violet-950/60 dark:text-violet-100/65">Deposit</span>
                     <strong className="mt-1 block text-ink dark:text-white">₹{Number(item.deposit).toLocaleString()}</strong>
                   </div>
-                  <div className="rounded-xl bg-mist p-3 text-sm dark:bg-white/10">
-                    <span className="text-violet-950/60 dark:text-violet-100/65">Available</span>
-                    <strong className="mt-1 block text-ink dark:text-white">{item.quantityAvailable}</strong>
-                  </div>
                 </div>
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                  <div className="inline-flex items-center rounded-full border border-violet-100 bg-white p-1 shadow-sm dark:border-violet-900/70 dark:bg-white/10">
-                    <button type="button" className="grid h-9 w-9 place-items-center rounded-full hover:bg-mist dark:hover:bg-white/10" onClick={() => updateQuantity(item._id, item.cartQuantity - 1)} aria-label="Decrease quantity">
-                      <Minus className="h-4 w-4" />
-                    </button>
-                    <span className="min-w-10 text-center text-sm font-black">{item.cartQuantity}</span>
-                    <button type="button" className="grid h-9 w-9 place-items-center rounded-full hover:bg-mist dark:hover:bg-white/10" onClick={() => updateQuantity(item._id, item.cartQuantity + 1)} aria-label="Increase quantity">
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <Link href={`/properties/${item._id}`} className="btn-primary">Request this rental</Link>
+                <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
+                  <Link href={`/properties/${item._id}`} className="btn-primary">Proceed to Checkout</Link>
                 </div>
               </div>
             </article>
@@ -90,7 +77,7 @@ export default function CartPage() {
             <div className="flex justify-between"><span>Daily rent total</span><strong>₹{totalDailyRent.toLocaleString()}</strong></div>
             <div className="flex justify-between"><span>Refundable deposits</span><strong>₹{totalDeposit.toLocaleString()}</strong></div>
             <div className="border-t border-violet-100 pt-3 dark:border-violet-900/70">
-              <p className="text-violet-950/60 dark:text-violet-100/65">Final rental amount depends on rental dates, quantity, delivery option, and admin confirmation.</p>
+              <p className="text-violet-950/60 dark:text-violet-100/65">Final rental amount depends on rental dates, delivery option, and admin confirmation.</p>
             </div>
           </div>
           <Link href="/properties" className="btn-secondary mt-5 w-full">Add more items</Link>

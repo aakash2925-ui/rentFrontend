@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronRight, CreditCard, IndianRupee, Loader2, LocateFixed, PackageCheck, Truck } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Check, CheckCircle2, ChevronRight, CreditCard, Edit3, IndianRupee, Loader2, MapPin, PackageCheck, Plus, Trash2, Truck, XCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -10,8 +10,14 @@ import { minRentalDaysOf, quantityOf, rentalDaysBetween } from "@/lib/itemFields
 import { calculateRentalPricing } from "@/lib/rentalPricing";
 import { useToast } from "@/context/ToastContext";
 import AddToCartButton from "@/components/cart/AddToCartButton";
+import { useCart } from "@/context/CartContext";
 
-const steps = ["Dates", "Pricing", "Payment", "Confirm"];
+const steps = ["Review", "Address", "Payment", "Confirm"];
+
+function toDateInputValue(date) {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 10);
+}
 
 function loadRazorpay() {
   return new Promise((resolve, reject) => {
@@ -26,26 +32,38 @@ function loadRazorpay() {
 
 export default function InquiryForm({ property }) {
   const { user } = useAuth();
+  const { clearCart } = useCart();
   const { showToast } = useToast();
   const router = useRouter();
+  const stepRefs = useRef([]);
   const [step, setStep] = useState(0);
   const [form, setForm] = useState({
-    phone: user?.phone || "",
+    fullName: user?.name || "",
+    mobileNumber: user?.phone || "",
     startDate: "",
     endDate: "",
-    quantity: 1,
-    deliveryAddress: "",
+    houseFlatNo: "",
+    streetArea: "",
+    landmark: "",
+    city: "",
+    state: "",
+    pincode: "",
     paymentMethod: "cod",
     message: `Hi, I want to rent ${property.title}.`
   });
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [locating, setLocating] = useState(false);
+  const [saveAddress, setSaveAddress] = useState(false);
+  const [savedAddresses, setSavedAddresses] = useState([]);
+  const [addressMode, setAddressMode] = useState("new");
+  const [selectedAddressId, setSelectedAddressId] = useState("");
+  const [availability, setAvailability] = useState({ status: "idle", message: "" });
   const [maxStep, setMaxStep] = useState(0);
 
   const rentalDays = rentalDaysBetween(form.startDate, form.endDate);
-  const selectedQuantity = Number(form.quantity || 1);
+  const today = useMemo(() => toDateInputValue(new Date()), []);
+  const selectedQuantity = 1;
   const deliveryDistanceKm = 0;
   const availableQuantity = quantityOf(property);
   const minRentalDays = minRentalDaysOf(property);
@@ -59,27 +77,96 @@ export default function InquiryForm({ property }) {
 
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
-  const validate = useCallback(() => {
+  const updateStartDate = (value) => {
+    setForm((current) => ({
+      ...current,
+      startDate: value,
+      endDate: current.endDate && current.endDate < value ? "" : current.endDate
+    }));
+  };
+
+  const addressPayload = useMemo(() => ({
+    fullName: form.fullName,
+    mobileNumber: form.mobileNumber,
+    houseFlatNo: form.houseFlatNo,
+    streetArea: form.streetArea,
+    landmark: form.landmark,
+    city: form.city,
+    state: form.state,
+    pincode: form.pincode
+  }), [form.city, form.fullName, form.houseFlatNo, form.landmark, form.mobileNumber, form.pincode, form.state, form.streetArea]);
+
+  const validateStep = useCallback((targetStep = step) => {
     if (!user) return "Please login before booking this item.";
+    if (!form.startDate) return "Start date is required.";
+    if (!form.endDate) return "End date is required.";
+    if (form.startDate < today) return "Start date cannot be before today.";
+    if (form.endDate < form.startDate) return "End date cannot be before start date.";
     if (rentalDays < minRentalDays) return `Minimum rental duration is ${minRentalDays} day(s).`;
-    if (selectedQuantity > availableQuantity) return `Only ${availableQuantity} item(s) available.`;
-    if (selectedQuantity < 1) return "Quantity must be at least 1.";
-    if (!form.phone.trim()) return "Phone number is required.";
-    if (!form.deliveryAddress.trim()) return "Delivery address is required.";
+    if (availableQuantity < 1) return "This item is currently out of stock.";
+    if (targetStep >= 1) {
+      if (!form.fullName.trim()) return "Full name is required.";
+      if (!form.mobileNumber.trim()) return "Mobile number is required.";
+      if (!form.houseFlatNo.trim()) return "House/flat number is required.";
+      if (!form.streetArea.trim()) return "Street/area is required.";
+      if (!form.city.trim()) return "City is required.";
+      if (!form.state.trim()) return "State is required.";
+      if (!/^\d{6}$/.test(form.pincode)) return "Enter a valid 6-digit PIN code.";
+      if (availability.status !== "available") return "Check PIN code availability before proceeding to payment.";
+    }
     return "";
-  }, [availableQuantity, form.deliveryAddress, form.phone, minRentalDays, rentalDays, selectedQuantity, user]);
+  }, [availableQuantity, availability.status, form.city, form.endDate, form.fullName, form.houseFlatNo, form.mobileNumber, form.pincode, form.startDate, form.state, form.streetArea, minRentalDays, rentalDays, step, today, user]);
 
   useEffect(() => {
     setError("");
   }, [step]);
 
-  const nextStep = () => {
-    const validationError = validate();
+  useEffect(() => {
+    if (!user) return;
+    setForm((current) => ({
+      ...current,
+      fullName: current.fullName || user.name || "",
+      mobileNumber: current.mobileNumber || user.phone || ""
+    }));
+  }, [user]);
+
+  useEffect(() => {
+    stepRefs.current[step]?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [step]);
+
+  useEffect(() => {
+    if (!user) return;
+    api.get("/auth/addresses")
+      .then(({ data }) => {
+        const addresses = data.addresses || [];
+        setSavedAddresses(addresses);
+        setForm((current) => ({
+          ...current,
+          fullName: current.fullName || user.name || addresses[0]?.fullName || "",
+          mobileNumber: current.mobileNumber || user.phone || addresses[0]?.mobileNumber || ""
+        }));
+      })
+      .catch(() => setSavedAddresses([]));
+  }, [user]);
+
+  const nextStep = async () => {
+    const validationError = validateStep(step);
     if (validationError) {
       setError(validationError);
       showToast(validationError, "error");
       if (!user) router.push("/login");
       return;
+    }
+    if (step === 1 && saveAddress) {
+      try {
+        await saveCurrentAddress();
+        showToast("Address saved");
+      } catch (err) {
+        const message = err.response?.data?.message || err.message || "Unable to save address";
+        setError(message);
+        showToast(message, "error");
+        return;
+      }
     }
     setStep((current) => {
       const next = Math.min(steps.length - 1, current + 1);
@@ -88,50 +175,107 @@ export default function InquiryForm({ property }) {
     });
   };
 
-  const detectLocation = async () => {
-    if (!navigator.geolocation) {
-      const message = "Location detection is not supported in this browser.";
-      setError(message);
-      showToast(message, "error");
+  const checkAvailability = useCallback(async (pin = form.pincode) => {
+    if (!/^\d{6}$/.test(pin)) {
+      setAvailability({ status: "idle", message: "" });
       return;
     }
+    setAvailability({ status: "checking", message: "Checking availability..." });
+    try {
+      const { data } = await api.get(`/properties/${property._id}/availability`, { params: { pincode: pin } });
+      setAvailability({ status: data.available ? "available" : "unavailable", message: data.message });
+    } catch (err) {
+      setAvailability({ status: "unavailable", message: err.response?.data?.message || "Unable to check availability" });
+    }
+  }, [form.pincode, property._id]);
 
-    setLocating(true);
-    setError("");
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        const fallbackAddress = `Current location: ${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}`;
-        try {
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${coords.latitude}&lon=${coords.longitude}`
-          );
-          const data = await response.json();
-          update("deliveryAddress", data.display_name || fallbackAddress);
-          showToast("Location detected and added to address.");
-        } catch {
-          update("deliveryAddress", fallbackAddress);
-          showToast("Location detected. Please add nearby landmark if needed.");
-        } finally {
-          setLocating(false);
-        }
-      },
-      () => {
-        const message = "Unable to detect location. Please allow location access or enter address manually.";
-        setError(message);
-        showToast(message, "error");
-        setLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
-    );
+  const fillAddress = useCallback((address) => {
+    setForm((current) => ({
+      ...current,
+      fullName: address.fullName || current.fullName,
+      mobileNumber: address.mobileNumber || current.mobileNumber,
+      houseFlatNo: address.houseFlatNo || "",
+      streetArea: address.streetArea || "",
+      landmark: address.landmark || "",
+      city: address.city || "",
+      state: address.state || "",
+      pincode: address.pincode || ""
+    }));
+    if (/^\d{6}$/.test(address.pincode || "")) checkAvailability(address.pincode);
+    setAddressMode("edit");
+    setSelectedAddressId(address._id || "");
+    setSaveAddress(false);
+  }, [checkAvailability]);
+
+  const deleteAddress = async (id) => {
+    try {
+      const { data } = await api.delete(`/auth/addresses/${id}`);
+      setSavedAddresses(data.addresses || []);
+      if (selectedAddressId === id) {
+        setSelectedAddressId("");
+        setAddressMode("new");
+      }
+      showToast("Address deleted");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to delete address", "error");
+    }
+  };
+
+  const saveCurrentAddress = async () => {
+    const validationError = validateStep(1);
+    if (validationError) throw new Error(validationError);
+    const request = addressMode === "edit" && selectedAddressId
+      ? api.put(`/auth/addresses/${selectedAddressId}`, addressPayload)
+      : api.post("/auth/addresses", addressPayload);
+    const { data } = await request;
+    setSavedAddresses(data.addresses || []);
+    setSaveAddress(false);
+  };
+
+  const startNewAddress = () => {
+    setAddressMode("new");
+    setSelectedAddressId("");
+    setSaveAddress(true);
+    setAvailability({ status: "idle", message: "" });
+    setForm((current) => ({
+      ...current,
+      houseFlatNo: "",
+      streetArea: "",
+      landmark: "",
+      city: "",
+      state: "",
+      pincode: ""
+    }));
+  };
+
+  useEffect(() => {
+    setAvailability({ status: "idle", message: "" });
+    if (!/^\d{6}$/.test(form.pincode)) return undefined;
+    const timeout = setTimeout(() => checkAvailability(form.pincode), 500);
+    return () => clearTimeout(timeout);
+  }, [checkAvailability, form.pincode]);
+
+  const deliveryAddress = [form.houseFlatNo, form.streetArea, form.landmark, form.city, form.state, form.pincode].filter(Boolean).join(", ");
+
+  const updatePin = (value) => {
+    update("pincode", value.replace(/\D/g, "").slice(0, 6));
   };
 
   const payload = {
     property: property._id,
-    phone: form.phone,
+    fullName: form.fullName,
+    mobileNumber: form.mobileNumber,
+    phone: form.mobileNumber,
     startDate: form.startDate,
     endDate: form.endDate,
     quantity: selectedQuantity,
-    deliveryAddress: form.deliveryAddress,
+    houseFlatNo: form.houseFlatNo,
+    streetArea: form.streetArea,
+    landmark: form.landmark,
+    city: form.city,
+    state: form.state,
+    pincode: form.pincode,
+    deliveryAddress,
     deliveryDistanceKm: 0,
     message: form.message
   };
@@ -140,6 +284,7 @@ export default function InquiryForm({ property }) {
     const { data } = await api.post("/bookings/cod", payload);
     setStatus(`Booking confirmed. Booking ID: ${data.booking._id}`);
     showToast("Booking confirmed with Cash on Delivery");
+    clearCart();
     router.push(`/booking-confirmation?booking=${data.booking._id}&method=cod`);
   };
 
@@ -154,12 +299,13 @@ export default function InquiryForm({ property }) {
         name: "Zasoota Rentals",
         description: property.title,
         order_id: data.order.id,
-        prefill: { name: user?.name, email: user?.email, contact: form.phone },
+        prefill: { name: form.fullName || user?.name, email: user?.email, contact: form.mobileNumber },
         theme: { color: "#6d28d9" },
         handler: async (response) => {
           try {
             await api.post("/bookings/razorpay/verify", { bookingId: data.booking._id, ...response });
             showToast("Payment successful");
+            clearCart();
             router.push(`/booking-confirmation?booking=${data.booking._id}&method=razorpay`);
             resolve();
           } catch (err) {
@@ -179,7 +325,7 @@ export default function InquiryForm({ property }) {
 
   const submit = async (event) => {
     event.preventDefault();
-    const validationError = validate();
+    const validationError = validateStep(1);
     if (validationError) {
       setError(validationError);
       showToast(validationError, "error");
@@ -209,7 +355,7 @@ export default function InquiryForm({ property }) {
         <div className="mt-6 overflow-x-auto pb-1">
           <div className="flex min-w-max items-center gap-2 rounded-[1.35rem] border border-white/15 bg-white/10 p-2 backdrop-blur">
             {steps.map((label, index) => (
-              <div key={label} className="flex items-center gap-2">
+              <div key={label} ref={(node) => { stepRefs.current[index] = node; }} className="flex items-center gap-2">
                 <button
                   type="button"
                   disabled={index > maxStep}
@@ -225,9 +371,9 @@ export default function InquiryForm({ property }) {
                   <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-black ${
                     step === index ? "bg-violet-700 text-white" : index <= maxStep ? "bg-white/20 text-white" : "bg-white/10 text-white/40"
                   }`}>
-                    {index + 1}
+                    {index < maxStep ? <Check className="h-4 w-4" /> : index + 1}
                   </span>
-                  <span className="text-sm font-black">{label}</span>
+                  <span className="text-sm font-black">{label === "Confirm" ? "Confirmation" : label}</span>
                 </button>
                 {index < steps.length - 1 && (
                   <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${
@@ -248,44 +394,180 @@ export default function InquiryForm({ property }) {
 
         {step === 0 && (
           <div className="space-y-5">
+            <div className="rounded-[1.35rem] border border-violet-100 bg-mist/70 p-5 dark:border-violet-900/70 dark:bg-white/10">
+              <SummaryRow label="Item" value={property.title} />
+              <SummaryRow label="Daily rent" value={`₹${Number(property.rent || 0).toLocaleString()}`} />
+              <SummaryRow label="Refundable deposit" value={`₹${Number(property.deposit || 0).toLocaleString()}`} />
+              {property.offer && <p className="mt-3 rounded-xl bg-meadow/10 px-3 py-2 text-sm font-black text-meadow">{property.offer}</p>}
+            </div>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="space-y-2">
                 <span className="text-sm font-black text-violet-950 dark:text-white">Start date</span>
-                <input className="field" type="date" required value={form.startDate} onChange={(e) => update("startDate", e.target.value)} />
+                <input
+                  className="field"
+                  type="date"
+                  min={today}
+                  required
+                  value={form.startDate}
+                  onChange={(e) => updateStartDate(e.target.value)}
+                />
               </label>
               <label className="space-y-2">
                 <span className="text-sm font-black text-violet-950 dark:text-white">End date</span>
-                <input className="field" type="date" required value={form.endDate} onChange={(e) => update("endDate", e.target.value)} />
+                <input className="field" type="date" min={form.startDate || today} required value={form.endDate} onChange={(e) => update("endDate", e.target.value)} />
               </label>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="space-y-2">
-                <span className="text-sm font-black text-violet-950 dark:text-white">Quantity</span>
-                <input className="field" type="number" min="1" max={availableQuantity} required placeholder="Quantity" value={form.quantity} onChange={(e) => update("quantity", e.target.value)} />
-              </label>
-              <label className="space-y-2">
-                <span className="text-sm font-black text-violet-950 dark:text-white">Phone number</span>
-                <input className="field" placeholder="Phone number" required value={form.phone} onChange={(e) => update("phone", e.target.value)} />
-              </label>
-            </div>
-            <div className="space-y-4 rounded-[1.35rem] border border-violet-100 bg-mist/70 p-5 dark:border-violet-900/70 dark:bg-white/10">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-sm font-black text-meadow"><Truck className="h-4 w-4" /> Doorstep delivery required</div>
-                <button className="btn-secondary px-4 py-2 text-xs" type="button" onClick={detectLocation} disabled={locating}>
-                  {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
-                  {locating ? "Detecting..." : "Detect location"}
-                </button>
-              </div>
-              <label className="space-y-2">
-                <span className="text-sm font-black text-violet-950 dark:text-white">Delivery address</span>
-                <textarea className="field min-h-28 resize-none" placeholder="House number, street, landmark, city" required value={form.deliveryAddress} onChange={(e) => update("deliveryAddress", e.target.value)} />
-              </label>
-              <p className="text-xs font-semibold text-violet-950/55 dark:text-violet-100/60">Auto-detected address can be edited before continuing.</p>
-            </div>
+            <PriceBreakdown pricing={pricing} rentalDays={rentalDays} deposit={property.deposit} />
           </div>
         )}
 
-        {step === 1 && <PriceBreakdown pricing={pricing} rentalDays={rentalDays} deposit={property.deposit} />}
+        {step === 1 && (
+          <div className="space-y-4 rounded-[1.35rem] border border-violet-100 bg-mist/70 p-5 dark:border-violet-900/70 dark:bg-white/10">
+            <div>
+              <div>
+                <div className="flex items-center gap-2 text-sm font-black text-meadow"><Truck className="h-4 w-4" /> Address and PIN availability</div>
+                <p className="mt-1 text-xs font-semibold text-violet-950/55 dark:text-violet-100/60">Enter your delivery address manually. PIN availability checks automatically.</p>
+              </div>
+            </div>
+            <div className="rounded-[1.35rem] border border-violet-100 bg-white/90 p-4 shadow-sm dark:border-violet-900/70 dark:bg-stone-950/40">
+              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                <div>
+                  <h3 className="text-sm font-black text-ink dark:text-white">Saved addresses</h3>
+                  <p className="mt-1 text-xs font-semibold text-violet-950/55 dark:text-violet-100/60">Choose a saved address or add a new one for this booking.</p>
+                </div>
+                <button className="btn-secondary px-3 py-2 text-xs" type="button" onClick={startNewAddress}>
+                  <Plus className="h-4 w-4" /> Add new address
+                </button>
+              </div>
+              {savedAddresses.length ? (
+                <div className="mt-4 grid gap-3">
+                  {savedAddresses.map((address) => {
+                    const selected = address.pincode === form.pincode && address.houseFlatNo === form.houseFlatNo && address.streetArea === form.streetArea;
+                    return (
+                      <article key={address._id} className={`rounded-2xl border p-3 transition ${selected ? "border-meadow bg-meadow/10 shadow-soft" : "border-violet-100 bg-mist/70 dark:border-violet-900/70 dark:bg-white/10"}`}>
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="min-w-0">
+                            <p className="font-black text-ink dark:text-white">{address.fullName} · {address.mobileNumber}</p>
+                            <p className="mt-1 text-sm leading-6 text-violet-950/65 dark:text-violet-100/70">
+                              {[address.houseFlatNo, address.streetArea, address.landmark, address.city, address.state, address.pincode].filter(Boolean).join(", ")}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button className="btn-primary px-3 py-2 text-xs" type="button" onClick={() => fillAddress(address)}>Use this address</button>
+                            <button className="btn-secondary px-3 py-2 text-xs" type="button" onClick={() => fillAddress(address)}><Edit3 className="h-4 w-4" /> Edit</button>
+                            <button className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-100 bg-white px-3 py-2 text-xs font-black text-red-600 transition hover:bg-red-50 dark:border-red-900/70 dark:bg-white/10 dark:text-red-300 dark:hover:bg-red-950/30" type="button" onClick={() => deleteAddress(address._id)}>
+                              <Trash2 className="h-4 w-4" /> Delete
+                            </button>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="mt-4 rounded-2xl bg-mist/70 px-4 py-3 text-sm font-semibold text-violet-950/60 dark:bg-white/10 dark:text-violet-100/65">No saved addresses yet. Add one below and save it for next time.</p>
+              )}
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="space-y-2">
+                <span className="text-sm font-black text-violet-950 dark:text-white">Full Name <span className="text-clay">*</span></span>
+                <input className="field" required value={form.fullName} onChange={(e) => update("fullName", e.target.value)} />
+              </label>
+              <label className="space-y-2">
+                <span className="text-sm font-black text-violet-950 dark:text-white">Mobile Number <span className="text-clay">*</span></span>
+                <input className="field" required value={form.mobileNumber} onChange={(e) => update("mobileNumber", e.target.value)} />
+              </label>
+              <label className="space-y-2">
+                <span className="text-sm font-black text-violet-950 dark:text-white">House/Flat No. <span className="text-clay">*</span></span>
+                <input className="field" required value={form.houseFlatNo} onChange={(e) => update("houseFlatNo", e.target.value)} />
+              </label>
+              <label className="space-y-2">
+                <span className="text-sm font-black text-violet-950 dark:text-white">Street/Area <span className="text-clay">*</span></span>
+                <input className="field" required value={form.streetArea} onChange={(e) => update("streetArea", e.target.value)} />
+              </label>
+              <label className="space-y-2">
+                <span className="text-sm font-black text-violet-950 dark:text-white">Landmark <span className="font-semibold text-violet-950/45 dark:text-violet-100/45">(Optional)</span></span>
+                <input className="field" value={form.landmark} onChange={(e) => update("landmark", e.target.value)} />
+              </label>
+              <label className="space-y-2">
+                <span className="text-sm font-black text-violet-950 dark:text-white">City <span className="text-clay">*</span></span>
+                <input className="field" required value={form.city} onChange={(e) => update("city", e.target.value)} />
+              </label>
+              <label className="space-y-2">
+                <span className="text-sm font-black text-violet-950 dark:text-white">State <span className="text-clay">*</span></span>
+                <input className="field" required value={form.state} onChange={(e) => update("state", e.target.value)} />
+              </label>
+            </div>
+            <div className={`rounded-[1.35rem] border p-4 shadow-sm transition ${
+              availability.status === "available"
+                ? "border-green-200 bg-green-50/90 dark:border-green-900/70 dark:bg-green-950/30"
+                : availability.status === "unavailable"
+                  ? "border-red-200 bg-red-50/90 dark:border-red-900/70 dark:bg-red-950/30"
+                  : "border-violet-100 bg-white/90 dark:border-violet-900/70 dark:bg-stone-950/40"
+            }`}>
+              <div className="mb-4 flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+                <div>
+                  <h3 className="text-sm font-black text-ink dark:text-white">Serviceability check</h3>
+                  <p className="mt-1 text-xs font-semibold text-violet-950/55 dark:text-violet-100/60">Availability checks automatically after a valid 6-digit PIN code is entered.</p>
+                </div>
+                <span className={`w-fit rounded-full px-3 py-1 text-xs font-black ${
+                  availability.status === "available"
+                    ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-200"
+                    : availability.status === "unavailable"
+                      ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-200"
+                      : "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-100"
+                }`}>
+                  {availability.status === "available" ? "Serviceable" : availability.status === "unavailable" ? "Unavailable" : availability.status === "checking" ? "Checking" : "Required"}
+                </span>
+              </div>
+              <div className="grid gap-3">
+                <label className="min-w-0 space-y-2">
+                  <span className="text-sm font-black text-violet-950 dark:text-white">PIN Code <span className="text-clay">*</span></span>
+                  <input
+                    className="field h-12 w-full text-base font-black tracking-wide"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="Enter 6-digit PIN for auto check"
+                    required
+                    value={form.pincode}
+                    onChange={(e) => updatePin(e.target.value)}
+                  />
+                </label>
+              </div>
+              <div className="mt-3 flex items-start gap-2 text-sm font-black">
+                {availability.status === "available" ? (
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
+                ) : availability.status === "unavailable" ? (
+                  <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+                ) : availability.status === "checking" ? (
+                  <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-violet-700" />
+                ) : (
+                  <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-violet-500" />
+                )}
+                <p className={
+                  availability.status === "available"
+                    ? "text-green-700 dark:text-green-200"
+                    : availability.status === "unavailable"
+                      ? "text-red-700 dark:text-red-200"
+                      : "text-violet-950/60 dark:text-violet-100/65"
+                }>
+                  {availability.status === "available"
+                    ? "Available in your area"
+                    : availability.message || "Enter your PIN code to confirm service availability before payment."}
+                </p>
+              </div>
+            </div>
+            <label className="flex items-start gap-3 rounded-2xl border border-violet-100 bg-white/90 p-4 text-sm font-bold text-violet-950 shadow-sm dark:border-violet-900/70 dark:bg-stone-950/40 dark:text-violet-100">
+              <input className="mt-1 h-4 w-4 accent-meadow" type="checkbox" checked={saveAddress} onChange={(event) => setSaveAddress(event.target.checked)} />
+              <span>
+                Save this address for future use
+                <span className="mt-1 block text-xs font-semibold text-violet-950/55 dark:text-violet-100/60">
+                  {addressMode === "edit" && selectedAddressId ? "Checked addresses will update the selected saved address." : "Checked addresses will be saved to your account after validation."}
+                </span>
+              </span>
+            </label>
+          </div>
+        )}
 
         {step === 2 && (
           <div className="grid gap-3">
@@ -304,6 +586,7 @@ export default function InquiryForm({ property }) {
             <SummaryRow label="Item" value={property.title} />
             <SummaryRow label="Dates" value={`${form.startDate || "-"} to ${form.endDate || "-"}`} />
             <SummaryRow label="Rental days" value={rentalDays || "-"} />
+            <SummaryRow label="Deliver to" value={deliveryAddress || "-"} />
             <SummaryRow label="Payment" value={form.paymentMethod === "cod" ? "Cash on Delivery" : "Razorpay"} />
             <PriceBreakdown pricing={pricing} rentalDays={rentalDays} deposit={property.deposit} compact />
             <textarea className="field min-h-24" placeholder="Message" required value={form.message} onChange={(e) => update("message", e.target.value)} />
@@ -313,7 +596,9 @@ export default function InquiryForm({ property }) {
         <div className="grid gap-3 border-t border-violet-100 pt-5 dark:border-violet-900/70 sm:grid-cols-2">
           {step > 0 && <button className="btn-secondary" type="button" onClick={() => setStep((current) => Math.max(0, current - 1))}>Back</button>}
           {step < 3 ? (
-            <button className="btn-primary" type="button" onClick={nextStep}>Continue</button>
+            <button className="btn-primary" type="button" onClick={nextStep} disabled={step === 1 && availability.status !== "available"}>
+              {step === 1 ? "Proceed to Payment" : "Continue"}
+            </button>
           ) : (
             <button className="btn-primary" disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : form.paymentMethod === "cod" ? <PackageCheck className="h-4 w-4" /> : <CreditCard className="h-4 w-4" />}

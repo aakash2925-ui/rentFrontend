@@ -1,9 +1,8 @@
-import { Boxes, CalendarClock, MapPin, Package, Percent, ShieldCheck, Star } from "lucide-react";
-import { conditionOf, itemTypeOf, minRentalDaysOf, quantityOf } from "@/lib/itemFields";
+import { CalendarClock, MapPin, Package, Percent, ShieldCheck, Star } from "lucide-react";
+import { conditionOf, itemTypeOf, minRentalDaysOf } from "@/lib/itemFields";
 
 export default function PropertyDetails({ property }) {
   const facts = [
-    { icon: Boxes, label: `${quantityOf(property)} Available` },
     { icon: CalendarClock, label: `${minRentalDaysOf(property)}+ rental days` },
     { icon: ShieldCheck, label: `${conditionOf(property)} condition` },
     { icon: Package, label: itemTypeOf(property) }
@@ -24,7 +23,7 @@ export default function PropertyDetails({ property }) {
         </div>
         {property.offer && <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-meadow/10 px-3 py-1 text-sm font-black text-meadow"><Percent className="h-4 w-4" /> {property.offer}</p>}
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {facts.map(({ icon: Icon, label }) => (
           <div key={label} className="rounded-lg border border-stone-200 bg-white p-3 text-sm font-semibold dark:border-stone-800 dark:bg-stone-900">
             <Icon className="mb-2 h-5 w-5 text-clay" /> {label}
