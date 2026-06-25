@@ -8,13 +8,23 @@ export const discountForDays = (days) => {
   return 0;
 };
 
-export const calculateRentalPricing = ({ rent, deposit, quantity, rentalDays, deliveryDistanceKm }) => {
+export const calculateRentalPricing = ({ rent, deposit, quantity, rentalDays, deliveryDistanceKm, voucherCode, voucherDiscountAmount = 0, voucherMessage = "" }) => {
   const baseAmount = Number(rent || 0) * Number(quantity || 1) * Number(rentalDays || 0);
   const discountPercentage = discountForDays(Number(rentalDays || 0));
   const discountAmount = Math.round((baseAmount * discountPercentage) / 100);
   const totalRent = Math.max(0, baseAmount - discountAmount);
+  const voucherAmount = Math.min(Number(voucherDiscountAmount || 0), totalRent);
   const deliveryCharge = Math.ceil(Number(deliveryDistanceKm || 0) * DELIVERY_RATE_PER_KM);
-  const finalAmount = totalRent + Number(deposit || 0) + deliveryCharge;
+  const finalAmount = Math.max(0, totalRent - voucherAmount) + Number(deposit || 0) + deliveryCharge;
 
-  return { baseAmount, discountPercentage, discountAmount, totalRent, deliveryCharge, finalAmount };
+  return {
+    baseAmount,
+    discountPercentage,
+    discountAmount,
+    totalRent,
+    voucher: { code: voucherCode || "", valid: Boolean(voucherCode && voucherAmount > 0), message: voucherMessage },
+    voucherDiscountAmount: voucherAmount,
+    deliveryCharge,
+    finalAmount
+  };
 };

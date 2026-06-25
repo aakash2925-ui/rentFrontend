@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CreditCard,
+  Edit3,
   Headphones,
   Heart,
   Home,
@@ -19,6 +20,8 @@ import {
   Package,
   Search,
   ShieldCheck,
+  Save,
+  Trash2,
   UserRound
 } from "lucide-react";
 import api, { uploadUrl } from "@/lib/api";
@@ -74,6 +77,7 @@ export default function UserDashboardPage() {
   const [inquiries, setInquiries] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [wishlist, setWishlist] = useState([]);
+  const [savedAddresses, setSavedAddresses] = useState([]);
   const [ownerInquiries, setOwnerInquiries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -85,7 +89,7 @@ export default function UserDashboardPage() {
 
   useEffect(() => {
     if (!user) return;
-    const calls = [api.get("/inquiries/my-inquiries"), api.get("/bookings/my-bookings"), api.get("/wishlist")];
+    const calls = [api.get("/inquiries/my-inquiries"), api.get("/bookings/my-bookings"), api.get("/wishlist"), api.get("/auth/addresses")];
     if (["owner", "admin"].includes(user.role)) {
       calls.push(api.get("/properties/my-properties"));
       calls.push(api.get("/inquiries/owner-inquiries"));
@@ -96,8 +100,9 @@ export default function UserDashboardPage() {
         setInquiries(responses[0].data.inquiries);
         setBookings(responses[1].data.bookings);
         setWishlist(responses[2].data.wishlist);
-        if (responses[3]) setProperties(responses[3].data.properties);
-        if (responses[4]) setOwnerInquiries(responses[4].data.inquiries);
+        setSavedAddresses(responses[3].data.addresses || []);
+        if (responses[4]) setProperties(responses[4].data.properties);
+        if (responses[5]) setOwnerInquiries(responses[5].data.inquiries);
       })
       .catch(() => setError("Unable to load dashboard data"))
       .finally(() => setLoading(false));
@@ -143,7 +148,7 @@ export default function UserDashboardPage() {
     pending: bookings.filter((item) => filterBooking(item, "pending")).length
   }), [bookings, wishlist]);
 
-  const panelProps = { user, bookings, inquiries, wishlist, properties, ownerInquiries, updateStatus, removeWishlist, stats };
+  const panelProps = { user, bookings, inquiries, wishlist, savedAddresses, setSavedAddresses, properties, ownerInquiries, updateStatus, removeWishlist, stats };
 
   return (
     <ProtectedRoute>
@@ -185,7 +190,7 @@ function DashboardPanel(props) {
   if (props.section === "bookings") return <BookingsPanel {...props} />;
   if (props.section === "wishlist") return <WishlistPanel {...props} />;
   if (props.section === "profile") return <ProfilePanel user={props.user} />;
-  if (props.section === "addresses") return <AddressesPanel user={props.user} />;
+  if (props.section === "addresses") return <AddressesPanel user={props.user} addresses={props.savedAddresses} setAddresses={props.setSavedAddresses} />;
   if (props.section === "payments") return <PaymentsPanel bookings={props.bookings} />;
   if (props.section === "notifications") return <NotificationsPanel bookings={props.bookings} inquiries={props.inquiries} />;
   if (props.section === "support") return <SupportPanel />;
@@ -383,20 +388,117 @@ function ProfilePanel({ user }) {
   );
 }
 
-function AddressesPanel({ user }) {
+function AddressesPanel({ user, addresses = [], setAddresses }) {
+  const { showToast } = useToast();
+  const [editingId, setEditingId] = useState("");
+  const [form, setForm] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  const startEdit = (address) => {
+    setEditingId(address._id);
+    setForm({
+      fullName: address.fullName || "",
+      mobileNumber: address.mobileNumber || "",
+      houseFlatNo: address.houseFlatNo || "",
+      streetArea: address.streetArea || "",
+      landmark: address.landmark || "",
+      city: address.city || "",
+      state: address.state || "",
+      pincode: address.pincode || ""
+    });
+  };
+
+  const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+
+  const saveEdit = async (id) => {
+    setSaving(true);
+    try {
+      const { data } = await api.put(`/auth/addresses/${id}`, form);
+      setAddresses(data.addresses || []);
+      setEditingId("");
+      showToast("Address updated");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to update address", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteAddress = async (id) => {
+    if (!window.confirm("Delete this saved address?")) return;
+    try {
+      const { data } = await api.delete(`/auth/addresses/${id}`);
+      setAddresses(data.addresses || []);
+      if (editingId === id) setEditingId("");
+      showToast("Address deleted");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to delete address", "error");
+    }
+  };
+
   return (
     <div>
-      <SectionHeader title="Saved Addresses" text="Use saved delivery details for faster checkout." action={<Link href="/contact" className="btn-secondary">Request update</Link>} />
-      <div className="rounded-2xl border border-violet-100 bg-mist/70 p-5 dark:border-violet-900/70 dark:bg-white/10">
-        <div className="flex items-start gap-3">
-          <Home className="mt-1 h-5 w-5 text-meadow" />
-          <div>
-            <h3 className="font-black">Default delivery address</h3>
-            <p className="mt-1 text-sm text-violet-950/60 dark:text-violet-100/65">No saved address yet. Delivery address is captured during booking and can be coordinated with support.</p>
-            <p className="mt-3 text-sm font-semibold text-violet-950/70 dark:text-violet-100/70">Account: {user?.email || "-"}</p>
+      <SectionHeader title="Saved Addresses" text="Addresses saved during checkout appear here for faster future bookings." action={<Link href="/properties" className="btn-secondary">Book an item</Link>} />
+      {addresses.length ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {addresses.map((address) => (
+            <article key={address._id} className="rounded-2xl border border-violet-100 bg-mist/70 p-5 shadow-sm dark:border-violet-900/70 dark:bg-white/10">
+              {editingId === address._id ? (
+                <div className="space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input className="field" placeholder="Full name" value={form.fullName || ""} onChange={(event) => update("fullName", event.target.value)} />
+                    <input className="field" placeholder="Mobile number" value={form.mobileNumber || ""} onChange={(event) => update("mobileNumber", event.target.value)} />
+                    <input className="field" placeholder="House/Flat No." value={form.houseFlatNo || ""} onChange={(event) => update("houseFlatNo", event.target.value)} />
+                    <input className="field" placeholder="Street/Area" value={form.streetArea || ""} onChange={(event) => update("streetArea", event.target.value)} />
+                    <input className="field" placeholder="Landmark optional" value={form.landmark || ""} onChange={(event) => update("landmark", event.target.value)} />
+                    <input className="field" placeholder="City" value={form.city || ""} onChange={(event) => update("city", event.target.value)} />
+                    <input className="field" placeholder="State" value={form.state || ""} onChange={(event) => update("state", event.target.value)} />
+                    <input className="field" inputMode="numeric" maxLength={6} placeholder="PIN Code" value={form.pincode || ""} onChange={(event) => update("pincode", event.target.value.replace(/\D/g, "").slice(0, 6))} />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button className="btn-primary" type="button" disabled={saving} onClick={() => saveEdit(address._id)}>
+                      <Save className="h-4 w-4" /> {saving ? "Saving..." : "Save"}
+                    </button>
+                    <button className="btn-secondary" type="button" onClick={() => setEditingId("")}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-start gap-3">
+                    <Home className="mt-1 h-5 w-5 shrink-0 text-meadow" />
+                    <div className="min-w-0">
+                      <h3 className="font-black text-ink dark:text-white">{address.fullName}</h3>
+                      <p className="mt-1 text-sm font-semibold text-violet-950/70 dark:text-violet-100/70">{address.mobileNumber}</p>
+                      <p className="mt-2 text-sm leading-6 text-violet-950/60 dark:text-violet-100/65">
+                        {[address.houseFlatNo, address.streetArea, address.landmark, address.city, address.state, address.pincode].filter(Boolean).join(", ")}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button className="btn-secondary px-3 py-2 text-xs" type="button" onClick={() => startEdit(address)}>
+                      <Edit3 className="h-4 w-4" /> Edit
+                    </button>
+                    <button className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-100 bg-white px-3 py-2 text-xs font-black text-red-600 transition hover:bg-red-50 dark:border-red-900/70 dark:bg-white/10 dark:text-red-300 dark:hover:bg-red-950/30" type="button" onClick={() => deleteAddress(address._id)}>
+                      <Trash2 className="h-4 w-4" /> Delete
+                    </button>
+                  </div>
+                </>
+              )}
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-violet-100 bg-mist/70 p-5 dark:border-violet-900/70 dark:bg-white/10">
+          <div className="flex items-start gap-3">
+            <Home className="mt-1 h-5 w-5 text-meadow" />
+            <div>
+              <h3 className="font-black">No saved addresses</h3>
+              <p className="mt-1 text-sm text-violet-950/60 dark:text-violet-100/65">Use the save-address checkbox during checkout to store delivery details here.</p>
+              <p className="mt-3 text-sm font-semibold text-violet-950/70 dark:text-violet-100/70">Account: {user?.email || "-"}</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -218,12 +218,12 @@ export default function HomePage() {
         <div className="reveal-card rounded-2xl border border-violet-100 bg-white/85 p-6 shadow-soft dark:border-violet-900/70 dark:bg-white/10">
           <WalletCards className="h-7 w-7 text-meadow" />
           <h2 className="mt-4 text-2xl font-black">Transparent totals before you send a request</h2>
-          <p className="mt-3 leading-7 text-violet-950/65 dark:text-violet-100/70">The detail page calculates rental days, selected quantity, daily rent, refundable deposit, and total payable before the request is submitted.</p>
+          <p className="mt-3 leading-7 text-violet-950/65 dark:text-violet-100/70">The detail page calculates rental days, daily rent, refundable deposit, and total payable before the request is submitted.</p>
         </div>
         <div className="reveal-card rounded-2xl border border-violet-700 bg-gradient-to-br from-ink via-violet-900 to-fuchsia-900 p-6 text-white shadow-glow">
           <ShieldCheck className="h-7 w-7 text-clay" />
           <h2 className="mt-4 text-2xl font-black">Stock stays honest as rentals move</h2>
-          <p className="mt-3 leading-7 text-violet-100/75">When admin marks a request as rented, inventory quantity reduces automatically. When it is returned or closed, quantity comes back.</p>
+          <p className="mt-3 leading-7 text-violet-100/75">When admin confirms a booking, stock updates automatically. When it is returned or closed, stock comes back.</p>
         </div>
       </section>
       <section className="mx-auto max-w-7xl px-4 pb-16">

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Boxes, CalendarClock, ChevronLeft, ChevronRight, MapPin, Percent } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight, MapPin, Percent } from "lucide-react";
 import { useState } from "react";
 import { uploadUrl } from "@/lib/api";
 import { minRentalDaysOf, quantityOf } from "@/lib/itemFields";
@@ -49,8 +49,7 @@ export default function PropertyCard({ property }) {
         </div>
         <p className="mt-2 flex items-center gap-1 text-sm text-stone-500 dark:text-stone-400"><MapPin className="h-4 w-4" /> Pincode {property.pincode}</p>
         {property.offer && <p className="mt-2 flex items-center gap-1 text-sm font-bold text-meadow"><Percent className="h-4 w-4" /> {property.offer}</p>}
-        <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-stone-600 dark:text-stone-300">
-          <span className="flex items-center gap-1"><Boxes className="h-4 w-4" /> Qty {quantity}</span>
+        <div className="mt-4 grid gap-2 text-xs text-stone-600 dark:text-stone-300">
           <span className="flex items-center gap-1"><CalendarClock className="h-4 w-4" /> {minRentalDaysOf(property)}+ days</span>
         </div>
         <AddToCartButton property={property} compact className="mt-4 w-full" />
