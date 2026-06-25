@@ -7,6 +7,6 @@ export const rentalDaysBetween = (startDate, endDate) => {
   if (!startDate || !endDate) return 0;
   const start = new Date(startDate);
   const end = new Date(endDate);
-  const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+  const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
   return Number.isFinite(days) && days > 0 ? days : 0;
 };

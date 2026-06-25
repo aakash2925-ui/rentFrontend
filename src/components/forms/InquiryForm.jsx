@@ -19,12 +19,6 @@ function toDateInputValue(date) {
   return localDate.toISOString().slice(0, 10);
 }
 
-function addDays(date, days) {
-  const nextDate = new Date(date);
-  nextDate.setDate(nextDate.getDate() + days);
-  return nextDate;
-}
-
 function loadRazorpay() {
   return new Promise((resolve, reject) => {
     if (window.Razorpay) return resolve();
@@ -48,7 +42,6 @@ export default function InquiryForm({ property }) {
     mobileNumber: user?.phone || "",
     startDate: "",
     endDate: "",
-    deliveryDate: "",
     houseFlatNo: "",
     streetArea: "",
     landmark: "",
@@ -76,7 +69,6 @@ export default function InquiryForm({ property }) {
 
   const rentalDays = rentalDaysBetween(form.startDate, form.endDate);
   const today = useMemo(() => toDateInputValue(new Date()), []);
-  const maxDeliveryDate = useMemo(() => toDateInputValue(addDays(new Date(), 5)), []);
   const selectedQuantity = 1;
   const deliveryDistanceKm = 0;
   const availableQuantity = quantityOf(property);
@@ -174,10 +166,8 @@ export default function InquiryForm({ property }) {
     if (!user) return "Please login before booking this item.";
     if (!form.startDate) return "Start date is required.";
     if (!form.endDate) return "End date is required.";
-    if (!form.deliveryDate) return "Delivery date is required.";
     if (form.startDate < today) return "Start date cannot be before today.";
     if (form.endDate < form.startDate) return "End date cannot be before start date.";
-    if (form.deliveryDate < today || form.deliveryDate > maxDeliveryDate) return "Delivery date should be within the next 5 days.";
     if (rentalDays < minRentalDays) return `Minimum rental duration is ${minRentalDays} day(s).`;
     if (availableQuantity < 1) return "This item is currently out of stock.";
     if (targetStep >= 1) {
@@ -191,7 +181,7 @@ export default function InquiryForm({ property }) {
       if (availability.status !== "available") return "Check PIN code availability before proceeding to payment.";
     }
     return "";
-  }, [availableQuantity, availability.status, form.city, form.deliveryDate, form.endDate, form.fullName, form.houseFlatNo, form.mobileNumber, form.pincode, form.startDate, form.state, form.streetArea, maxDeliveryDate, minRentalDays, rentalDays, step, today, user]);
+  }, [availableQuantity, availability.status, form.city, form.endDate, form.fullName, form.houseFlatNo, form.mobileNumber, form.pincode, form.startDate, form.state, form.streetArea, minRentalDays, rentalDays, step, today, user]);
 
   useEffect(() => {
     setError("");
@@ -344,7 +334,6 @@ export default function InquiryForm({ property }) {
     phone: form.mobileNumber,
     startDate: form.startDate,
     endDate: form.endDate,
-    deliveryDate: form.deliveryDate,
     quantity: selectedQuantity,
     houseFlatNo: form.houseFlatNo,
     streetArea: form.streetArea,
@@ -500,19 +489,7 @@ export default function InquiryForm({ property }) {
               <div className="flex items-center gap-2 text-sm font-black text-meadow">
                 <Truck className="h-4 w-4" /> Delivery details
               </div>
-              <p className="mt-1 text-xs font-semibold text-violet-950/55 dark:text-violet-100/60">Choose your delivery day within the next 5 days. Standard delivery is free within 24 hours.</p>
-              <label className="mt-4 block space-y-2">
-                <span className="text-sm font-black text-violet-950 dark:text-white">Delivery date <span className="text-clay">*</span></span>
-                <input
-                  className="field"
-                  type="date"
-                  min={today}
-                  max={maxDeliveryDate}
-                  required
-                  value={form.deliveryDate}
-                  onChange={(e) => update("deliveryDate", e.target.value)}
-                />
-              </label>
+              <p className="mt-1 text-xs font-semibold text-violet-950/55 dark:text-violet-100/60">Standard delivery is free within 24 hours. Choose fast delivery when you need the item sooner.</p>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 {[
                   ["standard", "Standard delivery", "Within 24 hours", "Free"],
@@ -743,7 +720,6 @@ export default function InquiryForm({ property }) {
             <SummaryRow label="Item" value={property.title} />
             <SummaryRow label="Dates" value={`${form.startDate || "-"} to ${form.endDate || "-"}`} />
             <SummaryRow label="Rental days" value={rentalDays || "-"} />
-            <SummaryRow label="Delivery date" value={form.deliveryDate || "-"} />
             <SummaryRow label="Deliver to" value={deliveryAddress || "-"} />
             <SummaryRow label="Delivery time" value={pricing.delivery?.eta || "Within 24 hours"} />
             <SummaryRow label="Payment" value={form.paymentMethod === "cod" ? "Cash on Delivery" : "Razorpay"} />
