@@ -59,6 +59,11 @@ export default function InquiryForm({ property }) {
   const [addressMode, setAddressMode] = useState("new");
   const [selectedAddressId, setSelectedAddressId] = useState("");
   const [availability, setAvailability] = useState({ status: "idle", message: "" });
+  const [voucherInput, setVoucherInput] = useState("");
+  const [appliedVoucherCode, setAppliedVoucherCode] = useState("");
+  const [appliedVoucher, setAppliedVoucher] = useState(null);
+  const [voucherLoading, setVoucherLoading] = useState(false);
+  const [voucherMessage, setVoucherMessage] = useState({ type: "", text: "" });
   const [maxStep, setMaxStep] = useState(0);
 
   const rentalDays = rentalDaysBetween(form.startDate, form.endDate);
@@ -72,17 +77,75 @@ export default function InquiryForm({ property }) {
     deposit: property.deposit,
     quantity: selectedQuantity,
     rentalDays,
-    deliveryDistanceKm
-  }), [property.rent, property.deposit, selectedQuantity, rentalDays, deliveryDistanceKm]);
+    deliveryDistanceKm,
+    voucherCode: appliedVoucherCode,
+    voucherDiscountAmount: appliedVoucher?.discountAmount || 0,
+    voucherMessage: appliedVoucher?.message || ""
+  }), [property.rent, property.deposit, selectedQuantity, rentalDays, deliveryDistanceKm, appliedVoucherCode, appliedVoucher]);
 
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
+  const clearAppliedVoucher = (message = "") => {
+    if (!appliedVoucherCode) return;
+    setAppliedVoucherCode("");
+    setAppliedVoucher(null);
+    if (message) setVoucherMessage({ type: "error", text: message });
+  };
+
   const updateStartDate = (value) => {
+    clearAppliedVoucher("Voucher removed. Apply it again after changing rental dates.");
     setForm((current) => ({
       ...current,
       startDate: value,
       endDate: current.endDate && current.endDate < value ? "" : current.endDate
     }));
+  };
+
+  const updateEndDate = (value) => {
+    clearAppliedVoucher("Voucher removed. Apply it again after changing rental dates.");
+    update("endDate", value);
+  };
+
+  const applyVoucher = async () => {
+    const code = voucherInput.trim().toUpperCase();
+    if (!code) {
+      setVoucherMessage({ type: "error", text: "Enter a voucher code." });
+      return;
+    }
+    if (!form.startDate || !form.endDate) {
+      setVoucherMessage({ type: "error", text: "Select rental dates before applying a voucher." });
+      return;
+    }
+
+    setVoucherLoading(true);
+    try {
+      const { data } = await api.post("/vouchers/apply", {
+        code,
+        property: property._id,
+        startDate: form.startDate,
+        endDate: form.endDate,
+        quantity: selectedQuantity,
+        deliveryDistanceKm
+      });
+      setAppliedVoucherCode(data.voucher.code);
+      setAppliedVoucher(data.voucher);
+      setVoucherInput(data.voucher.code);
+      setVoucherMessage({ type: "success", text: data.voucher.message });
+      showToast(data.voucher.message);
+    } catch (err) {
+      setAppliedVoucherCode("");
+      setAppliedVoucher(null);
+      setVoucherMessage({ type: "error", text: err.response?.data?.message || "Invalid voucher code." });
+    } finally {
+      setVoucherLoading(false);
+    }
+  };
+
+  const removeVoucher = () => {
+    setAppliedVoucherCode("");
+    setAppliedVoucher(null);
+    setVoucherInput("");
+    setVoucherMessage({ type: "", text: "" });
   };
 
   const addressPayload = useMemo(() => ({
@@ -277,6 +340,7 @@ export default function InquiryForm({ property }) {
     pincode: form.pincode,
     deliveryAddress,
     deliveryDistanceKm: 0,
+    voucherCode: appliedVoucherCode,
     message: form.message
   };
 
@@ -414,8 +478,39 @@ export default function InquiryForm({ property }) {
               </label>
               <label className="space-y-2">
                 <span className="text-sm font-black text-violet-950 dark:text-white">End date</span>
-                <input className="field" type="date" min={form.startDate || today} required value={form.endDate} onChange={(e) => update("endDate", e.target.value)} />
+                <input className="field" type="date" min={form.startDate || today} required value={form.endDate} onChange={(e) => updateEndDate(e.target.value)} />
               </label>
+            </div>
+            <div className="rounded-[1.35rem] border border-violet-100 bg-white/90 p-4 shadow-sm dark:border-violet-900/70 dark:bg-stone-950/40">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                <label className="flex-1 space-y-2">
+                  <span className="text-sm font-black text-violet-950 dark:text-white">Voucher code</span>
+                  <input
+                    className="field uppercase"
+                    placeholder="Enter voucher code"
+                    value={voucherInput}
+                    onChange={(e) => {
+                      setVoucherInput(e.target.value.toUpperCase());
+                      if (appliedVoucherCode) setAppliedVoucherCode("");
+                      if (voucherMessage.text) setVoucherMessage({ type: "", text: "" });
+                    }}
+                  />
+                </label>
+                <div className="flex gap-2">
+                  <button className="btn-primary px-4 py-3 text-sm" type="button" onClick={applyVoucher} disabled={voucherLoading}>
+                    {voucherLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    {voucherLoading ? "Checking" : "Apply"}
+                  </button>
+                  {appliedVoucherCode && (
+                    <button className="btn-secondary px-4 py-3 text-sm" type="button" onClick={removeVoucher}>Remove</button>
+                  )}
+                </div>
+              </div>
+              {voucherMessage.text && (
+                <p className={`mt-3 text-sm font-black ${voucherMessage.type === "success" ? "text-green-700 dark:text-green-200" : "text-red-700 dark:text-red-200"}`}>
+                  {voucherMessage.text}
+                </p>
+              )}
             </div>
             <PriceBreakdown pricing={pricing} rentalDays={rentalDays} deposit={property.deposit} />
           </div>
@@ -618,10 +713,11 @@ function PriceBreakdown({ pricing, rentalDays, deposit, compact = false }) {
       <SummaryRow label="Rental days" value={rentalDays || "-"} />
       <SummaryRow label="Base price" value={`₹${pricing.baseAmount.toLocaleString()}`} />
       <SummaryRow label={`Discount (${pricing.discountPercentage}%)`} value={`-₹${pricing.discountAmount.toLocaleString()}`} />
+      {pricing.voucherDiscountAmount > 0 && <SummaryRow label={`Voucher (${pricing.voucher.code})`} value={`-₹${pricing.voucherDiscountAmount.toLocaleString()}`} />}
       <SummaryRow label="Refundable deposit" value={`₹${Number(deposit || 0).toLocaleString()}`} />
       {pricing.deliveryCharge > 0 && <SummaryRow label="Delivery" value={`₹${pricing.deliveryCharge.toLocaleString()}`} />}
       <div className="mt-3 flex justify-between border-t border-violet-100 pt-3 text-base dark:border-violet-900/70"><span className="font-black">Final payable</span><strong className="text-meadow">₹{pricing.finalAmount.toLocaleString()}</strong></div>
-      {pricing.discountAmount > 0 && <p className="mt-3 rounded-xl bg-green-50 px-3 py-2 text-sm font-black text-green-700 dark:bg-green-950/40 dark:text-green-200"><IndianRupee className="mr-1 inline h-4 w-4" /> You save ₹{pricing.discountAmount.toLocaleString()} on this booking. Long-term rental discount applied.</p>}
+      {(pricing.discountAmount + pricing.voucherDiscountAmount) > 0 && <p className="mt-3 rounded-xl bg-green-50 px-3 py-2 text-sm font-black text-green-700 dark:bg-green-950/40 dark:text-green-200"><IndianRupee className="mr-1 inline h-4 w-4" /> You save ₹{(pricing.discountAmount + pricing.voucherDiscountAmount).toLocaleString()} on this booking.</p>}
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BarChart3, Boxes, CalendarCheck, History, ImagePlus, LayoutDashboard, Mail, Menu, Package, PackageCheck, PackagePlus, Pencil, Save, Tags, Trash2, Users, X } from "lucide-react";
+import { BarChart3, Boxes, CalendarCheck, History, ImagePlus, LayoutDashboard, Mail, Menu, Package, PackageCheck, PackagePlus, Pencil, Save, Tags, TicketPercent, Trash2, Users, X } from "lucide-react";
 import api, { uploadUrl } from "@/lib/api";
 import { conditionOf, itemTypeOf, quantityOf } from "@/lib/itemFields";
 import ErrorMessage from "@/components/common/ErrorMessage";
@@ -20,6 +20,7 @@ const adminTasks = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "types", label: "Item Types", icon: Tags },
   { id: "items", label: "Items", icon: Boxes },
+  { id: "vouchers", label: "Vouchers", icon: TicketPercent },
   { id: "bookings", label: "Booking Requests", icon: Package },
   { id: "contacts", label: "Contact Inquiries", icon: Mail },
   { id: "activity", label: "Activity Logs", icon: History },
@@ -42,11 +43,23 @@ const bookingStatusLabel = (status) => ({
 }[status] || status);
 
 const defaultItemTypeImage = "https://images.unsplash.com/photo-1520549233664-03f65c1d1327?auto=format&fit=crop&w=900&q=80";
+const emptyVoucherForm = {
+  code: "",
+  description: "",
+  discountType: "percentage",
+  value: "",
+  maxDiscount: "",
+  minAmount: "",
+  startDate: "",
+  endDate: "",
+  usageLimit: "",
+  isActive: true
+};
 
 export default function AdminDashboardPage() {
   const { user, logout } = useAuth();
   const router = useRouter();
-  const [data, setData] = useState({ stats: null, users: [], properties: [], bookings: [], contacts: [], logs: [], itemTypes: [] });
+  const [data, setData] = useState({ stats: null, users: [], properties: [], bookings: [], contacts: [], logs: [], itemTypes: [], vouchers: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [typeName, setTypeName] = useState("");
@@ -60,6 +73,8 @@ export default function AdminDashboardPage() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [filters, setFilters] = useState({ search: "", status: "", type: "", role: "", dateFrom: "", dateTo: "" });
+  const [voucherForm, setVoucherForm] = useState(emptyVoucherForm);
+  const [editingVoucher, setEditingVoucher] = useState(null);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -70,9 +85,10 @@ export default function AdminDashboardPage() {
       api.get("/bookings"),
       api.get("/contact?limit=50"),
       api.get("/admin/activity-logs"),
-      api.get("/item-types")
+      api.get("/item-types"),
+      api.get("/vouchers")
     ])
-      .then(([stats, users, properties, bookings, contacts, logs, itemTypes]) => {
+      .then(([stats, users, properties, bookings, contacts, logs, itemTypes, vouchers]) => {
         setData({
           stats: stats.data.stats,
           users: users.data.users,
@@ -80,7 +96,8 @@ export default function AdminDashboardPage() {
           bookings: bookings.data.bookings,
           contacts: contacts.data.contacts,
           logs: logs.data.logs,
-          itemTypes: itemTypes.data.itemTypes
+          itemTypes: itemTypes.data.itemTypes,
+          vouchers: vouchers.data.vouchers
         });
       })
       .catch(() => setError("Unable to load admin dashboard"))
@@ -158,6 +175,64 @@ export default function AdminDashboardPage() {
       showToast("Item type removed");
     } catch (err) {
       showToast(err.response?.data?.message || "Unable to remove item type", "error");
+    }
+  };
+
+  const resetVoucherForm = () => {
+    setVoucherForm(emptyVoucherForm);
+    setEditingVoucher(null);
+  };
+
+  const saveVoucher = async (event) => {
+    event.preventDefault();
+    try {
+      const payload = {
+        ...voucherForm,
+        code: voucherForm.code.trim().toUpperCase(),
+        value: Number(voucherForm.value || 0),
+        maxDiscount: Number(voucherForm.maxDiscount || 0),
+        minAmount: Number(voucherForm.minAmount || 0),
+        usageLimit: Number(voucherForm.usageLimit || 0)
+      };
+      const request = editingVoucher ? api.put(`/vouchers/${editingVoucher._id}`, payload) : api.post("/vouchers", payload);
+      const { data: response } = await request;
+      setData((current) => ({
+        ...current,
+        vouchers: editingVoucher
+          ? current.vouchers.map((voucher) => voucher._id === response.voucher._id ? response.voucher : voucher)
+          : [response.voucher, ...current.vouchers]
+      }));
+      resetVoucherForm();
+      showToast(editingVoucher ? "Voucher updated" : "Voucher added");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to save voucher", "error");
+    }
+  };
+
+  const startEditVoucher = (voucher) => {
+    setEditingVoucher(voucher);
+    setVoucherForm({
+      code: voucher.code || "",
+      description: voucher.description || "",
+      discountType: voucher.discountType || "percentage",
+      value: voucher.value || "",
+      maxDiscount: voucher.maxDiscount || "",
+      minAmount: voucher.minAmount || "",
+      startDate: voucher.startDate ? voucher.startDate.slice(0, 10) : "",
+      endDate: voucher.endDate ? voucher.endDate.slice(0, 10) : "",
+      usageLimit: voucher.usageLimit || "",
+      isActive: voucher.isActive !== false
+    });
+  };
+
+  const deleteVoucher = async (id) => {
+    if (!window.confirm("Delete this voucher?")) return;
+    try {
+      await api.delete(`/vouchers/${id}`);
+      setData((current) => ({ ...current, vouchers: current.vouchers.filter((voucher) => voucher._id !== id) }));
+      showToast("Voucher deleted");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to delete voucher", "error");
     }
   };
 
@@ -335,6 +410,7 @@ export default function AdminDashboardPage() {
                 />
               )}
               {activeTask === "items" && <ItemsPanel items={data.properties} filters={filters} setFilters={setFilters} deleteItem={deleteItem} exportCsv={exportCsv} />}
+              {activeTask === "vouchers" && <VouchersPanel vouchers={data.vouchers} voucherForm={voucherForm} setVoucherForm={setVoucherForm} editingVoucher={editingVoucher} saveVoucher={saveVoucher} startEditVoucher={startEditVoucher} resetVoucherForm={resetVoucherForm} deleteVoucher={deleteVoucher} exportCsv={exportCsv} />}
               {activeTask === "bookings" && <BookingsPanel bookings={data.bookings} filters={filters} setFilters={setFilters} updateBookingStatus={updateBookingStatus} updatePaymentStatus={updatePaymentStatus} exportCsv={exportCsv} />}
               {activeTask === "contacts" && <ContactsPanel contacts={data.contacts} filters={filters} setFilters={setFilters} updateContactStatus={updateContactStatus} deleteContact={deleteContact} exportCsv={exportCsv} />}
               {activeTask === "activity" && <ActivityPanel logs={data.logs} filters={filters} setFilters={setFilters} exportCsv={exportCsv} />}
@@ -625,6 +701,119 @@ function ItemsPanel({ items, filters, setFilters, deleteItem, exportCsv }) {
           </tbody>
         </table>
         {!filteredItems.length && <div className="p-4"><EmptyState title="No matching items" message="Adjust search or filters to find inventory." actionHref="/add-property" actionLabel="Add item" /></div>}
+      </div>
+    </section>
+  );
+}
+
+function VouchersPanel({ vouchers, voucherForm, setVoucherForm, editingVoucher, saveVoucher, startEditVoucher, resetVoucherForm, deleteVoucher, exportCsv }) {
+  const updateForm = (key, value) => setVoucherForm((current) => ({ ...current, [key]: value }));
+  const formatDate = (value) => value ? new Date(value).toLocaleDateString() : "No limit";
+
+  return (
+    <section className="space-y-5">
+      <div className="rounded-2xl border border-violet-100 bg-white p-5 shadow-sm dark:border-violet-900/70 dark:bg-stone-950/70">
+        <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+          <div>
+            <h2 className="text-xl font-black text-ink dark:text-white">Vouchers</h2>
+            <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">Create checkout discount codes with amount rules, validity, and usage limits.</p>
+          </div>
+          <button className="btn-secondary" type="button" onClick={() => exportCsv("vouchers.csv", vouchers.map((voucher) => ({
+            code: voucher.code,
+            type: voucher.discountType,
+            value: voucher.value,
+            minAmount: voucher.minAmount,
+            used: voucher.usedCount,
+            usageLimit: voucher.usageLimit,
+            active: voucher.isActive
+          })))}>
+            Export CSV
+          </button>
+        </div>
+
+        <form onSubmit={saveVoucher} className="mt-5 grid gap-4 rounded-2xl border border-violet-100 bg-mist/70 p-4 dark:border-violet-900/70 dark:bg-white/10 lg:grid-cols-3">
+          <label className="space-y-2">
+            <span className="text-sm font-black">Voucher code</span>
+            <input className="field uppercase" placeholder="SUMMER10" value={voucherForm.code} onChange={(event) => updateForm("code", event.target.value.toUpperCase())} />
+          </label>
+          <label className="space-y-2 lg:col-span-2">
+            <span className="text-sm font-black">Description</span>
+            <input className="field" placeholder="10% off up to ₹500" value={voucherForm.description} onChange={(event) => updateForm("description", event.target.value)} />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-black">Discount type</span>
+            <select className="field" value={voucherForm.discountType} onChange={(event) => updateForm("discountType", event.target.value)}>
+              <option value="percentage">Percentage</option>
+              <option value="fixed">Fixed amount</option>
+            </select>
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-black">{voucherForm.discountType === "percentage" ? "Discount %" : "Discount amount"}</span>
+            <input className="field" min="0" type="number" value={voucherForm.value} onChange={(event) => updateForm("value", event.target.value)} />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-black">Max discount</span>
+            <input className="field" min="0" placeholder="0 for no cap" type="number" value={voucherForm.maxDiscount} onChange={(event) => updateForm("maxDiscount", event.target.value)} />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-black">Minimum rent</span>
+            <input className="field" min="0" type="number" value={voucherForm.minAmount} onChange={(event) => updateForm("minAmount", event.target.value)} />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-black">Start date</span>
+            <input className="field" type="date" value={voucherForm.startDate} onChange={(event) => updateForm("startDate", event.target.value)} />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-black">End date</span>
+            <input className="field" type="date" value={voucherForm.endDate} onChange={(event) => updateForm("endDate", event.target.value)} />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-black">Usage limit</span>
+            <input className="field" min="0" placeholder="0 for unlimited" type="number" value={voucherForm.usageLimit} onChange={(event) => updateForm("usageLimit", event.target.value)} />
+          </label>
+          <label className="flex items-center gap-3 rounded-xl border border-violet-100 bg-white px-4 py-3 text-sm font-black dark:border-violet-900/70 dark:bg-stone-950/70">
+            <input className="h-4 w-4 accent-meadow" type="checkbox" checked={voucherForm.isActive} onChange={(event) => updateForm("isActive", event.target.checked)} />
+            Active voucher
+          </label>
+          <div className="flex gap-2 lg:col-span-2 lg:justify-end">
+            {editingVoucher && <button className="btn-secondary" type="button" onClick={resetVoucherForm}><X className="h-4 w-4" /> Cancel</button>}
+            <button className="btn-primary" type="submit"><Save className="h-4 w-4" /> {editingVoucher ? "Update voucher" : "Add voucher"}</button>
+          </div>
+        </form>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        {vouchers.length ? vouchers.map((voucher) => (
+          <article key={voucher._id} className="rounded-2xl border border-violet-100 bg-white p-5 shadow-sm dark:border-violet-900/70 dark:bg-stone-950/70">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-lg font-black text-ink dark:text-white">{voucher.code}</h3>
+                  <span className={`rounded-full px-3 py-1 text-xs font-black ${voucher.isActive ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                    {voucher.isActive ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-stone-600 dark:text-stone-300">{voucher.description}</p>
+              </div>
+              <div className="flex gap-1">
+                <button className="rounded-lg p-2 text-stone-500 hover:bg-mist hover:text-meadow dark:text-stone-400 dark:hover:bg-stone-900" type="button" onClick={() => startEditVoucher(voucher)} aria-label={`Edit ${voucher.code}`}>
+                  <Pencil className="h-4 w-4" />
+                </button>
+                <button className="rounded-lg p-2 text-stone-500 hover:bg-red-50 hover:text-red-600 dark:text-stone-400 dark:hover:bg-red-950/30 dark:hover:text-red-300" type="button" onClick={() => deleteVoucher(voucher._id)} aria-label={`Delete ${voucher.code}`}>
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <InfoTile label="Discount" value={voucher.discountType === "percentage" ? `${voucher.value}%` : `₹${Number(voucher.value || 0).toLocaleString()}`} />
+              <InfoTile label="Max discount" value={voucher.maxDiscount ? `₹${Number(voucher.maxDiscount).toLocaleString()}` : "No cap"} />
+              <InfoTile label="Minimum rent" value={`₹${Number(voucher.minAmount || 0).toLocaleString()}`} />
+              <InfoTile label="Usage" value={`${voucher.usedCount || 0}${voucher.usageLimit ? ` / ${voucher.usageLimit}` : " used"}`} />
+              <InfoTile label="Starts" value={formatDate(voucher.startDate)} />
+              <InfoTile label="Ends" value={formatDate(voucher.endDate)} />
+            </div>
+          </article>
+        )) : <EmptyState title="No vouchers yet" message="Create a voucher code and customers can apply it during checkout." />}
       </div>
     </section>
   );
