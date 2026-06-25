@@ -312,9 +312,11 @@ function BookingCard({ booking, compact = false }) {
           <StatusPill label={`payment ${booking.paymentStatus}`} />
         </div>
       </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+      <div className="mt-4 grid gap-3 sm:grid-cols-5">
         <InfoCard label="Amount" value={`₹${Number(booking.finalAmount || booking.totalAmount || 0).toLocaleString()}`} />
         <InfoCard label="Method" value={booking.paymentMethod === "razorpay" ? "Razorpay" : "Cash on Delivery"} />
+        <InfoCard label="Delivery date" value={booking.deliveryDate ? formatDate(booking.deliveryDate) : "-"} />
+        <InfoCard label="Delivery" value={booking.deliveryEta || (booking.deliverySpeed === "fast" ? "Within 2 hours" : "Within 24 hours")} />
         <InfoCard label="Booking ID" value={String(booking._id).slice(-8)} />
       </div>
       {!compact && (

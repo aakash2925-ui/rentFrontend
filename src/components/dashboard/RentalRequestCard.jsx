@@ -50,7 +50,7 @@ export default function RentalRequestCard({ request, onStatusChange, showUser = 
         <div className="flex items-start gap-2">
           {isDelivery ? <Truck className="mt-0.5 h-4 w-4 text-meadow" /> : <MapPin className="mt-0.5 h-4 w-4 text-meadow" />}
           <div>
-            <strong>{isDelivery ? "Delivery requested" : "Pickup selected"}</strong>
+            <strong>{isDelivery ? `Delivery requested · ${request.deliveryDate ? formatDate(request.deliveryDate) : "Date pending"} · ${request.deliveryEta || (request.deliverySpeed === "fast" ? "Within 2 hours" : "Within 24 hours")}` : "Pickup selected"}</strong>
             <p className="mt-1 text-stone-600 dark:text-stone-300">
               {isDelivery
                 ? request.deliveryAddress || "No address"
