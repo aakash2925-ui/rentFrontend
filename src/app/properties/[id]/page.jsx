@@ -27,7 +27,7 @@ export default function PropertyDetailPage({ params }) {
         return api.get(`/properties?type=${encodeURIComponent(itemTypeOf(data.property))}&limit=4`);
       })
       .then(({ data }) => setRelated(data.properties.filter((item) => item._id !== params.id).slice(0, 3)))
-      .catch(() => setError("Property not found"))
+      .catch(() => setError("Item not found"))
       .finally(() => setLoading(false));
   }, [params.id]);
 
@@ -47,7 +47,7 @@ export default function PropertyDetailPage({ params }) {
       <nav className="mb-5 text-sm text-stone-500">
         <Link href="/" className="hover:text-meadow">Home</Link>
         <span className="mx-2">/</span>
-        <Link href="/properties" className="hover:text-meadow">Items</Link>
+        <Link href="/items" className="hover:text-meadow">Items</Link>
         <span className="mx-2">/</span>
         <span>{property.title}</span>
       </nav>

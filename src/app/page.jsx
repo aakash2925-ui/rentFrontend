@@ -125,7 +125,7 @@ export default function HomePage() {
             return (
               <Link
                 key={type.name}
-                href={`/properties?type=${encodeURIComponent(type.name)}`}
+                href={`/items?type=${encodeURIComponent(type.name)}`}
                 className="group reveal-card relative overflow-hidden rounded-[1.75rem] border border-white/70 bg-white/82 p-3 shadow-soft transition duration-300 hover:-translate-y-2 hover:border-violet-300 hover:shadow-glow dark:border-violet-900/70 dark:bg-white/10"
               >
                 <div className="relative aspect-[16/11] overflow-hidden rounded-[1.35rem] bg-violet-100 dark:bg-violet-950/70">

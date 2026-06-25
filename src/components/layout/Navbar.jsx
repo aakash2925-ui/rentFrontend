@@ -9,7 +9,7 @@ import { useCart } from "@/context/CartContext";
 
 const links = [
   { href: "/", label: "Home" },
-  { href: "/properties", label: "Items" }
+  { href: "/items", label: "Items" }
 ];
 
 export default function Navbar() {
@@ -24,7 +24,7 @@ export default function Navbar() {
     event.preventDefault();
     const params = new URLSearchParams();
     if (query.trim()) params.set("search", query.trim());
-    router.push(`/properties${params.toString() ? `?${params.toString()}` : ""}`);
+    router.push(`/items${params.toString() ? `?${params.toString()}` : ""}`);
     setOpen(false);
   };
 
@@ -80,7 +80,7 @@ export default function Navbar() {
             )}
           </Link>
           {user?.role === "admin" && (
-            <Link href="/add-property" className="btn-secondary">
+            <Link href="/add-item" className="btn-secondary">
               <PlusCircle className="h-4 w-4" /> Add
             </Link>
           )}

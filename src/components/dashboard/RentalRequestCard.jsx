@@ -17,7 +17,7 @@ export default function RentalRequestCard({ request, onStatusChange, showUser = 
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             {item?._id ? (
-              <Link href={`/properties/${item._id}`} className="text-base font-black hover:text-meadow">
+              <Link href={`/items/${item._id}`} className="text-base font-black hover:text-meadow">
                 {item.title}
               </Link>
             ) : (

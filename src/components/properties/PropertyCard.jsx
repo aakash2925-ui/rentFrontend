@@ -24,7 +24,7 @@ export default function PropertyCard({ property }) {
   return (
     <article className="group overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-soft dark:border-stone-800 dark:bg-stone-900">
       <div className="relative aspect-[4/3] overflow-hidden bg-stone-100 dark:bg-stone-800">
-        <Link href={`/properties/${property._id}`}>
+        <Link href={`/items/${property._id}`}>
           <img src={uploadUrl(images[activeImage])} alt={property.title} className="h-full w-full object-cover transition group-hover:scale-105" />
         </Link>
         <span className={`absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-black ${badgeClass}`}>{badge}</span>
@@ -44,7 +44,7 @@ export default function PropertyCard({ property }) {
       </div>
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
-          <Link href={`/properties/${property._id}`} className="line-clamp-2 text-base font-bold hover:text-meadow">{property.title}</Link>
+          <Link href={`/items/${property._id}`} className="line-clamp-2 text-base font-bold hover:text-meadow">{property.title}</Link>
           <p className="whitespace-nowrap text-sm font-black text-meadow">₹{Number(property.rent).toLocaleString()}</p>
         </div>
         <p className="mt-2 flex items-center gap-1 text-sm text-stone-500 dark:text-stone-400"><MapPin className="h-4 w-4" /> Pincode {property.pincode}</p>

@@ -43,7 +43,7 @@ function BookingConfirmationContent() {
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
             <Link href="/dashboard" className="btn-primary flex-1">View dashboard</Link>
-            <Link href="/properties" className="btn-secondary flex-1">Browse more items</Link>
+            <Link href="/items" className="btn-secondary flex-1">Browse more items</Link>
           </div>
         </div>
       </section>

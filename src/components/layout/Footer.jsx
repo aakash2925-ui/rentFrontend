@@ -19,10 +19,10 @@ export default function Footer() {
         </div>
         <div className="flex flex-col gap-2 text-sm">
           <strong className="text-ink dark:text-stone-100">Explore</strong>
-          <Link href="/properties" className="text-violet-950/65 hover:text-meadow dark:text-violet-100/70">Items</Link>
-          <Link href="/properties?type=Projector" className="text-violet-950/65 hover:text-meadow dark:text-violet-100/70">Projectors</Link>
-          <Link href="/properties?type=Speaker" className="text-violet-950/65 hover:text-meadow dark:text-violet-100/70">Speakers</Link>
-          <Link href="/properties?type=Luggage" className="text-violet-950/65 hover:text-meadow dark:text-violet-100/70">Luggage</Link>
+          <Link href="/items" className="text-violet-950/65 hover:text-meadow dark:text-violet-100/70">Items</Link>
+          <Link href="/items?type=Projector" className="text-violet-950/65 hover:text-meadow dark:text-violet-100/70">Projectors</Link>
+          <Link href="/items?type=Speaker" className="text-violet-950/65 hover:text-meadow dark:text-violet-100/70">Speakers</Link>
+          <Link href="/items?type=Luggage" className="text-violet-950/65 hover:text-meadow dark:text-violet-100/70">Luggage</Link>
         </div>
         <div className="flex flex-col gap-2 text-sm">
           <strong className="text-ink dark:text-stone-100">Account</strong>

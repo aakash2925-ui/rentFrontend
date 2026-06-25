@@ -154,7 +154,7 @@ export default function UserDashboardPage() {
     <ProtectedRoute>
       <DashboardLayout
         title={`Welcome, ${user?.name || "there"}`}
-        actions={user?.role === "admin" ? <Link key="add" href="/add-property" className="btn-primary">Add item</Link> : null}
+        actions={user?.role === "admin" ? <Link key="add" href="/add-item" className="btn-primary">Add item</Link> : null}
       >
         {loading ? <Loading /> : error ? <ErrorMessage message={error} /> : (
           <div className="relative">
@@ -225,14 +225,14 @@ function OverviewPanel({ user, bookings, inquiries, wishlist, properties, ownerI
           <h3 className="text-lg font-black">Recent bookings</h3>
           <div className="mt-4 space-y-3">
             {bookings.slice(0, 3).map((booking) => <BookingCard key={booking._id} booking={booking} compact />)}
-            {!bookings.length && <EmptyState title="No bookings yet" message="Your rental bookings will appear here." actionHref="/properties" actionLabel="Browse items" />}
+            {!bookings.length && <EmptyState title="No bookings yet" message="Your rental bookings will appear here." actionHref="/items" actionLabel="Browse items" />}
           </div>
         </div>
         <div className="rounded-2xl border border-violet-100 bg-mist/70 p-4 dark:border-violet-900/70 dark:bg-white/10">
           <h3 className="text-lg font-black">Saved wishlist</h3>
           <div className="mt-4 grid gap-3">
             {wishlist.slice(0, 3).map((item) => <WishlistMini key={item._id} item={item} />)}
-            {!wishlist.length && <EmptyState title="No saved items" message="Save items to compare and book later." actionHref="/properties" actionLabel="Explore rentals" />}
+            {!wishlist.length && <EmptyState title="No saved items" message="Save items to compare and book later." actionHref="/items" actionLabel="Explore rentals" />}
           </div>
         </div>
       </div>
@@ -257,7 +257,7 @@ function OverviewPanel({ user, bookings, inquiries, wishlist, properties, ownerI
       <section>
         <h3 className="mb-4 text-lg font-black">My booking requests</h3>
         <div className="grid gap-3">
-          {inquiries.length ? inquiries.slice(0, 3).map((item) => <RentalRequestCard key={item._id} request={item} />) : <EmptyState title="No booking requests" message="Booking requests appear here after you submit an item request." actionHref="/properties" actionLabel="Browse items" />}
+          {inquiries.length ? inquiries.slice(0, 3).map((item) => <RentalRequestCard key={item._id} request={item} />) : <EmptyState title="No booking requests" message="Booking requests appear here after you submit an item request." actionHref="/items" actionLabel="Browse items" />}
         </div>
       </section>
     </div>
@@ -290,7 +290,7 @@ function BookingsPanel({ bookings }) {
       </div>
       <div className="grid gap-4">
         {visible.map((booking) => <BookingCard key={booking._id} booking={booking} />)}
-        {!visible.length && <EmptyState title="No matching bookings" message="Try a different filter or search term." actionHref="/properties" actionLabel="Browse rentals" />}
+        {!visible.length && <EmptyState title="No matching bookings" message="Try a different filter or search term." actionHref="/items" actionLabel="Browse rentals" />}
       </div>
     </div>
   );
@@ -319,7 +319,7 @@ function BookingCard({ booking, compact = false }) {
       </div>
       {!compact && (
         <div className="mt-4 flex flex-wrap gap-2">
-          <Link href={`/properties/${booking.property?._id || ""}`} className="btn-secondary">View item</Link>
+          <Link href={`/items/${booking.property?._id || ""}`} className="btn-secondary">View item</Link>
           <Link href="/contact" className="btn-primary">Get support</Link>
         </div>
       )}
@@ -330,10 +330,10 @@ function BookingCard({ booking, compact = false }) {
 function WishlistPanel({ wishlist, removeWishlist }) {
   return (
     <div>
-      <SectionHeader title="Wishlist" text="Saved items are ready when you want to compare or book." action={<Link href="/properties" className="btn-secondary">Browse more</Link>} />
+      <SectionHeader title="Wishlist" text="Saved items are ready when you want to compare or book." action={<Link href="/items" className="btn-secondary">Browse more</Link>} />
       <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
         {wishlist.map((item) => <WishlistCard key={item._id} item={item} onRemove={removeWishlist} />)}
-        {!wishlist.length && <div className="sm:col-span-2 xl:col-span-3"><EmptyState title="No saved items" message="Tap the heart on item cards to save gear for later." actionHref="/properties" actionLabel="Browse items" /></div>}
+        {!wishlist.length && <div className="sm:col-span-2 xl:col-span-3"><EmptyState title="No saved items" message="Tap the heart on item cards to save gear for later." actionHref="/items" actionLabel="Browse items" /></div>}
       </div>
     </div>
   );
@@ -344,7 +344,7 @@ function WishlistCard({ item, onRemove }) {
   if (!property) return null;
   return (
     <article className="overflow-hidden rounded-2xl border border-violet-100 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-soft dark:border-violet-900/70 dark:bg-stone-950/70">
-      <Link href={`/properties/${property._id}`} className="block aspect-[4/3] overflow-hidden bg-stone-100 dark:bg-stone-900">
+      <Link href={`/items/${property._id}`} className="block aspect-[4/3] overflow-hidden bg-stone-100 dark:bg-stone-900">
         <img src={uploadUrl(property.images?.[0])} alt={property.title} className="h-full w-full object-cover transition hover:scale-105" />
       </Link>
       <div className="p-4">
@@ -352,7 +352,7 @@ function WishlistCard({ item, onRemove }) {
         <p className="mt-2 text-sm font-black text-meadow">₹{Number(property.rent || 0).toLocaleString()} / day</p>
         <p className="mt-1 flex items-center gap-1 text-sm text-violet-950/60 dark:text-violet-100/65"><MapPin className="h-4 w-4" /> Pincode {property.pincode || "-"}</p>
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          <Link href={`/properties/${property._id}`} className="btn-primary">Rent now</Link>
+          <Link href={`/items/${property._id}`} className="btn-primary">Rent now</Link>
           <button type="button" onClick={() => onRemove(property._id)} className="btn-secondary">Remove</button>
         </div>
       </div>
@@ -364,7 +364,7 @@ function WishlistMini({ item }) {
   const property = item.property;
   if (!property) return null;
   return (
-    <Link href={`/properties/${property._id}`} className="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft dark:bg-stone-950/70">
+    <Link href={`/items/${property._id}`} className="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft dark:bg-stone-950/70">
       <img src={uploadUrl(property.images?.[0])} alt={property.title} className="h-14 w-14 rounded-xl object-cover" />
       <div className="min-w-0">
         <p className="truncate text-sm font-black">{property.title}</p>
@@ -438,7 +438,7 @@ function AddressesPanel({ user, addresses = [], setAddresses }) {
 
   return (
     <div>
-      <SectionHeader title="Saved Addresses" text="Addresses saved during checkout appear here for faster future bookings." action={<Link href="/properties" className="btn-secondary">Book an item</Link>} />
+      <SectionHeader title="Saved Addresses" text="Addresses saved during checkout appear here for faster future bookings." action={<Link href="/items" className="btn-secondary">Book an item</Link>} />
       {addresses.length ? (
         <div className="grid gap-4 lg:grid-cols-2">
           {addresses.map((address) => (
@@ -561,7 +561,7 @@ function SupportPanel() {
         <div className="rounded-2xl border border-violet-100 bg-white p-5 dark:border-violet-900/70 dark:bg-stone-950/70">
           <h3 className="text-lg font-black">Quick links</h3>
           <div className="mt-4 grid gap-2">
-            <Link href="/properties" className="btn-secondary justify-start">Browse rentals</Link>
+            <Link href="/items" className="btn-secondary justify-start">Browse rentals</Link>
             <Link href="/cart" className="btn-secondary justify-start">Open cart</Link>
           </div>
         </div>
