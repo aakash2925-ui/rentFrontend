@@ -29,12 +29,18 @@ export default function Footer() {
           <Link href="/login" className="text-violet-950/65 hover:text-meadow dark:text-violet-100/70">Login</Link>
           <Link href="/register" className="text-violet-950/65 hover:text-meadow dark:text-violet-100/70">Register</Link>
           <Link href="/contact" className="text-violet-950/65 hover:text-meadow dark:text-violet-100/70">Contact</Link>
+          <Link href="/terms-and-conditions" className="text-violet-950/65 hover:text-meadow dark:text-violet-100/70">Terms</Link>
+          <Link href="/privacy-policy" className="text-violet-950/65 hover:text-meadow dark:text-violet-100/70">Privacy</Link>
         </div>
         <div className="space-y-3 text-sm text-violet-950/65 dark:text-violet-100/70">
           <strong className="block text-ink dark:text-stone-100">Help desk</strong>
           <p className="flex items-center gap-2"><Phone className="h-4 w-4 text-meadow" /> 8796318284</p>
           <p className="flex items-center gap-2"><Mail className="h-4 w-4 text-meadow" /> zasoota.in@gmail.com</p>
           <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-meadow" /> Doorstep delivery</p>
+          <div className="flex flex-wrap gap-x-3 gap-y-1 pt-1">
+            <Link href="/refund-policy" className="text-violet-950/65 hover:text-meadow dark:text-violet-100/70">Refund Policy</Link>
+            <Link href="/cancellation-policy" className="text-violet-950/65 hover:text-meadow dark:text-violet-100/70">Cancellation Policy</Link>
+          </div>
         </div>
       </div>
       <div className="border-t border-violet-100 dark:border-violet-900/70">
