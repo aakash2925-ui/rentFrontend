@@ -62,10 +62,14 @@ export default function Navbar() {
     blurTimer.current = setTimeout(() => setShowSuggestions(false), 150);
   };
 
+  const closeMenu = () => {
+    setOpen(false);
+    setShowSuggestions(false);
+  };
+
   const openSuggestion = (item) => {
     setQuery(item.title || "");
-    setShowSuggestions(false);
-    setOpen(false);
+    closeMenu();
     router.push(`/items/${item._id}`);
   };
 
@@ -102,7 +106,7 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-40 border-b border-violet-100 bg-white/85 shadow-sm backdrop-blur-xl dark:border-violet-900/70 dark:bg-[#11071f]/88">
       <nav className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
-        <Link href="/" className="group flex items-center" aria-label="Zasoota home">
+        <Link href="/" onClick={closeMenu} className="group flex items-center" aria-label="Zasoota home">
           <img
             src="/zasoota-logo.svg"
             alt="Zasoota logo"
@@ -144,11 +148,11 @@ export default function Navbar() {
             {suggestionBox}
           </form>
           {links.map((link) => (
-            <Link key={link.href} href={link.href} className={`rounded-xl px-3 py-2 text-sm font-semibold transition hover:-translate-y-0.5 ${pathname === link.href ? "bg-white text-meadow shadow-sm dark:bg-white/10" : "text-violet-950/75 hover:bg-white/65 hover:text-meadow dark:text-violet-100/80"}`}>
+            <Link key={link.href} href={link.href} onClick={closeMenu} className={`rounded-xl px-3 py-2 text-sm font-semibold transition hover:-translate-y-0.5 ${pathname === link.href ? "bg-white text-meadow shadow-sm dark:bg-white/10" : "text-violet-950/75 hover:bg-white/65 hover:text-meadow dark:text-violet-100/80"}`}>
               {link.label}
             </Link>
           ))}
-          <Link href="/cart" className="btn-secondary relative" aria-label="Cart">
+          <Link href="/cart" onClick={closeMenu} className="btn-secondary relative" aria-label="Cart">
             <ShoppingCart className="h-4 w-4" /> Cart
             {count > 0 && (
               <span className="absolute -right-2 -top-2 grid h-5 min-w-5 place-items-center rounded-full bg-fuchsia-500 px-1 text-[0.65rem] font-black text-white">
@@ -157,16 +161,16 @@ export default function Navbar() {
             )}
           </Link>
           {user?.role === "admin" && (
-            <Link href="/add-item" className="btn-secondary">
+            <Link href="/add-item" onClick={closeMenu} className="btn-secondary">
               <PlusCircle className="h-4 w-4" /> Add
             </Link>
           )}
           {user ? (
-            <Link href={user.role === "admin" ? "/admin" : "/dashboard"} className="btn-secondary">
+            <Link href={user.role === "admin" ? "/admin" : "/dashboard"} onClick={closeMenu} className="btn-secondary">
               <UserRound className="h-4 w-4" /> Dashboard
             </Link>
           ) : (
-            <Link href="/login" className="btn-primary">Login</Link>
+            <Link href="/login" onClick={closeMenu} className="btn-primary">Login</Link>
           )}
         </div>
       </nav>
