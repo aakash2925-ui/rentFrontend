@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bell,
   Bookmark,
+  Camera,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -22,6 +23,7 @@ import {
   ShieldCheck,
   Save,
   Trash2,
+  Upload,
   UserRound
 } from "lucide-react";
 import api, { uploadUrl } from "@/lib/api";
@@ -297,22 +299,31 @@ function BookingsPanel({ bookings }) {
 }
 
 function BookingCard({ booking, compact = false }) {
+  const itemHref = booking.property?._id ? `/items/${booking.property._id}` : "";
+  const title = booking.property?.title || "Rental item";
+
   return (
-    <article className="rounded-2xl border border-violet-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft dark:border-violet-900/70 dark:bg-stone-950/70">
+    <article className="min-w-0 overflow-hidden rounded-2xl border border-violet-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft dark:border-violet-900/70 dark:bg-stone-950/70">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-        <div className="min-w-0">
-          <h3 className="truncate text-lg font-black text-ink dark:text-white">{booking.property?.title || "Rental item"}</h3>
-          <p className="mt-1 text-sm font-semibold text-violet-950/60 dark:text-violet-100/65">
-            {formatDate(booking.startDate)} - {formatDate(booking.endDate)} · {booking.quantity} item(s)
+        <div className="min-w-0 flex-1">
+          {itemHref ? (
+            <Link href={itemHref} className="line-clamp-2 max-w-full break-words text-lg font-black leading-snug text-ink transition hover:text-meadow dark:text-white">
+              {title}
+            </Link>
+          ) : (
+            <h3 className="line-clamp-2 max-w-full break-words text-lg font-black leading-snug text-ink dark:text-white">{title}</h3>
+          )}
+          <p className="mt-1 break-words text-sm font-semibold text-violet-950/60 dark:text-violet-100/65">
+            {formatDate(booking.startDate)} - {formatDate(booking.endDate)} · {booking.quantity || 1} item(s)
           </p>
-          {!compact && <p className="mt-2 line-clamp-2 text-sm text-violet-950/60 dark:text-violet-100/65">Delivery: {booking.deliveryAddress || "Address shared"}</p>}
+          {!compact && <p className="mt-2 line-clamp-3 max-w-full break-words text-sm leading-6 text-violet-950/60 dark:text-violet-100/65">Delivery: {booking.deliveryAddress || "Address shared"}</p>}
         </div>
-        <div className="flex flex-wrap gap-2 md:justify-end">
+        <div className="flex min-w-0 flex-wrap gap-2 md:max-w-[45%] md:justify-end">
           <StatusPill label={statusLabel(booking.status)} className={statusTone[booking.status]} />
           <StatusPill label={`payment ${booking.paymentStatus}`} />
         </div>
       </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-4">
+      <div className="mt-4 grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <InfoCard label="Amount" value={`₹${Number(booking.finalAmount || booking.totalAmount || 0).toLocaleString()}`} />
         <InfoCard label="Method" value={booking.paymentMethod === "razorpay" ? "Razorpay" : "Cash on Delivery"} />
         <InfoCard label="Delivery" value={booking.deliveryEta || (booking.deliverySpeed === "fast" ? "Within 2 hours" : "Within 24 hours")} />
@@ -320,7 +331,7 @@ function BookingCard({ booking, compact = false }) {
       </div>
       {!compact && (
         <div className="mt-4 flex flex-wrap gap-2">
-          <Link href={`/items/${booking.property?._id || ""}`} className="btn-secondary">View item</Link>
+          {itemHref && <Link href={itemHref} className="btn-secondary">View item</Link>}
           <Link href="/contact" className="btn-primary">Get support</Link>
         </div>
       )}
@@ -378,23 +389,86 @@ function WishlistMini({ item }) {
 function ProfilePanel({ user }) {
   const { updateUser } = useAuth();
   const { showToast } = useToast();
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
   const [kycForm, setKycForm] = useState({
     legalName: user?.kyc?.legalName || user?.name || "",
     documentType: user?.kyc?.documentType || "aadhaar",
     documentNumber: user?.kyc?.documentNumber || ""
   });
   const [kycOtp, setKycOtp] = useState("");
+  const [cameraActive, setCameraActive] = useState(false);
+  const [capturePreview, setCapturePreview] = useState("");
+  const [captureFile, setCaptureFile] = useState(null);
   const [savingKyc, setSavingKyc] = useState(false);
   const [verifyingKyc, setVerifyingKyc] = useState(false);
   const kycStatus = user?.kyc?.status || "not_submitted";
   const kycApproved = kycStatus === "approved";
+  const kycPhotoSubmitted = Boolean(user?.kyc?.hasSelfieWithIdImage);
+
+  const stopCamera = (updateState = true) => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    if (updateState) setCameraActive(false);
+  };
+
+  const startCamera = async () => {
+    if (kycApproved) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+      streamRef.current = stream;
+      setCameraActive(true);
+    } catch {
+      showToast("Unable to open camera. Please allow camera permission and try again.", "error");
+    }
+  };
+
+  const captureKycPhoto = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    if (!video.videoWidth || !video.videoHeight) {
+      showToast("Camera is still loading. Please try again in a moment.", "error");
+      return;
+    }
+    canvas.width = video.videoWidth || 960;
+    canvas.height = video.videoHeight || 720;
+    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const file = new File([blob], `kyc-selfie-${Date.now()}.jpg`, { type: "image/jpeg" });
+      setCaptureFile(file);
+      setCapturePreview(URL.createObjectURL(file));
+      stopCamera();
+    }, "image/jpeg", 0.9);
+  };
+
+  useEffect(() => () => stopCamera(false), []);
+
+  useEffect(() => {
+    if (!cameraActive || !videoRef.current || !streamRef.current) return;
+    videoRef.current.srcObject = streamRef.current;
+    videoRef.current.play().catch(() => {});
+  }, [cameraActive]);
 
   const submitKyc = async (event) => {
     event.preventDefault();
+    if (!captureFile && !kycPhotoSubmitted) {
+      showToast("Capture a live photo holding your identity card", "error");
+      return;
+    }
     setSavingKyc(true);
     try {
-      const { data } = await api.post("/auth/kyc", kycForm);
+      const formData = new FormData();
+      formData.append("legalName", kycForm.legalName);
+      formData.append("documentType", kycForm.documentType);
+      formData.append("documentNumber", kycForm.documentNumber);
+      if (captureFile) formData.append("selfieWithId", captureFile);
+      const { data } = await api.post("/auth/kyc", formData);
       updateUser(data.user);
+      setCapturePreview("");
+      setCaptureFile(null);
       showToast(data.message || "KYC OTP sent to your email");
     } catch (err) {
       showToast(err.response?.data?.message || "Unable to submit KYC", "error");
@@ -458,6 +532,73 @@ function ProfilePanel({ user }) {
             <span className="text-sm font-black">Document number</span>
             <input className="field uppercase disabled:cursor-not-allowed disabled:opacity-70" disabled={kycApproved} value={kycForm.documentNumber} onChange={(event) => setKycForm((current) => ({ ...current, documentNumber: event.target.value.toUpperCase() }))} />
           </label>
+        </div>
+        <div className="mt-4 rounded-2xl border border-violet-100 bg-white/80 p-4 dark:border-violet-900/70 dark:bg-stone-950/40">
+          <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
+            <div>
+              <h4 className="font-black text-ink dark:text-white">{kycApproved ? "KYC submitted successfully" : "Live photo with identity card"}</h4>
+              <p className="mt-1 text-sm text-violet-950/60 dark:text-violet-100/65">
+                {kycApproved ? "Your identity verification is approved. KYC details are locked for your account." : "Hold your identity card near your face, then capture a clear live photo."}
+              </p>
+            </div>
+            <span className={`w-fit rounded-full px-3 py-1 text-xs font-black ${kycApproved || capturePreview || kycPhotoSubmitted ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>
+              {kycApproved ? "Verified" : kycPhotoSubmitted ? "Submitted to admin" : capturePreview ? "Photo captured" : "Required"}
+            </span>
+          </div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+            <div className="overflow-hidden rounded-2xl border border-violet-100 bg-stone-950 dark:border-violet-900/70">
+              {cameraActive ? (
+                <video ref={videoRef} className="aspect-video w-full object-cover" autoPlay muted playsInline onLoadedMetadata={(event) => event.currentTarget.play().catch(() => {})} />
+              ) : capturePreview ? (
+                <img src={capturePreview} alt="KYC live photo preview" className="aspect-video w-full object-cover" />
+              ) : kycApproved ? (
+                <div className="flex aspect-video flex-col items-center justify-center gap-2 bg-green-950 text-center text-white">
+                  <ShieldCheck className="h-8 w-8" />
+                  <p className="text-sm font-bold">KYC submitted successfully</p>
+                  <p className="max-w-xs text-xs text-green-100/75">Your verification has been approved.</p>
+                </div>
+              ) : kycPhotoSubmitted ? (
+                <div className="flex aspect-video flex-col items-center justify-center gap-2 bg-green-950 text-center text-white">
+                  <ShieldCheck className="h-8 w-8" />
+                  <p className="text-sm font-bold">KYC photo submitted for admin review</p>
+                </div>
+              ) : (
+                <div className="flex aspect-video flex-col items-center justify-center gap-2 bg-violet-950 text-center text-white">
+                  <Camera className="h-8 w-8" />
+                  <p className="text-sm font-bold">Camera preview will appear here</p>
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col justify-center gap-3">
+              {kycApproved ? (
+                <div className="rounded-2xl border border-green-100 bg-green-50 p-4 text-sm font-bold text-green-700 dark:border-green-900/70 dark:bg-green-950/30 dark:text-green-200">
+                  KYC submitted successfully. No further action is required.
+                </div>
+              ) : (
+                <>
+                  <button className="btn-secondary" type="button" disabled={cameraActive} onClick={startCamera}>
+                    <Camera className="h-4 w-4" /> Open camera
+                  </button>
+                  {cameraActive && (
+                    <button className="btn-primary" type="button" onClick={captureKycPhoto}>
+                      <Upload className="h-4 w-4" /> Capture photo
+                    </button>
+                  )}
+                  {capturePreview && (
+                    <button className="btn-secondary" type="button" onClick={() => { setCapturePreview(""); setCaptureFile(null); startCamera(); }}>
+                      Retake photo
+                    </button>
+                  )}
+                  {cameraActive && (
+                    <button className="rounded-xl border border-red-100 bg-white px-4 py-3 text-sm font-black text-red-600 transition hover:bg-red-50 dark:border-red-900/70 dark:bg-white/10 dark:text-red-300 dark:hover:bg-red-950/30" type="button" onClick={stopCamera}>
+                      Cancel camera
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+          <canvas ref={canvasRef} className="hidden" />
         </div>
         <button className="btn-primary mt-4" type="submit" disabled={savingKyc || kycApproved}>
           {savingKyc ? "Sending OTP..." : kycApproved ? "KYC approved" : kycStatus === "otp_pending" ? "Resend OTP" : "Submit KYC"}
@@ -605,9 +746,15 @@ function PaymentsPanel({ bookings }) {
       </div>
       <div className="mt-5 grid gap-3">
         {bookings.slice(0, 5).map((booking) => (
-          <div key={booking._id} className="flex flex-col justify-between gap-2 rounded-2xl border border-violet-100 bg-white p-4 text-sm dark:border-violet-900/70 dark:bg-stone-950/70 md:flex-row md:items-center">
-            <strong>{booking.property?.title || "Rental item"}</strong>
-            <span>₹{Number(booking.finalAmount || booking.totalAmount || 0).toLocaleString()} · {booking.paymentMethod === "razorpay" ? "Razorpay" : "COD"} · {booking.paymentStatus}</span>
+          <div key={booking._id} className="flex min-w-0 flex-col justify-between gap-2 overflow-hidden rounded-2xl border border-violet-100 bg-white p-4 text-sm dark:border-violet-900/70 dark:bg-stone-950/70 md:flex-row md:items-center">
+            {booking.property?._id ? (
+              <Link href={`/items/${booking.property._id}`} className="min-w-0 break-words font-black leading-snug transition hover:text-meadow">
+                {booking.property?.title || "Rental item"}
+              </Link>
+            ) : (
+              <strong className="min-w-0 break-words leading-snug">{booking.property?.title || "Rental item"}</strong>
+            )}
+            <span className="shrink-0 break-words md:text-right">₹{Number(booking.finalAmount || booking.totalAmount || 0).toLocaleString()} · {booking.paymentMethod === "razorpay" ? "Razorpay" : "COD"} · {booking.paymentStatus}</span>
           </div>
         ))}
         {!bookings.length && <EmptyState title="No payments yet" message="Payments will appear after your first booking." />}
@@ -678,12 +825,12 @@ function MetricCard({ icon: Icon, label, value }) {
 
 function InfoCard({ icon: Icon, label, value }) {
   return (
-    <div className="rounded-2xl border border-violet-100 bg-white p-4 dark:border-violet-900/70 dark:bg-stone-950/70">
-      <div className="flex items-center gap-3">
-        {Icon && <Icon className="h-5 w-5 text-meadow" />}
-        <div className="min-w-0">
+    <div className="min-w-0 overflow-hidden rounded-2xl border border-violet-100 bg-white p-4 dark:border-violet-900/70 dark:bg-stone-950/70">
+      <div className="flex min-w-0 items-center gap-3">
+        {Icon && <Icon className="h-5 w-5 shrink-0 text-meadow" />}
+        <div className="min-w-0 flex-1">
           <p className="text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">{label}</p>
-          <p className="mt-1 truncate text-sm font-black text-ink dark:text-white">{value}</p>
+          <p className="mt-1 max-w-full break-words text-sm font-black leading-snug text-ink dark:text-white">{value}</p>
         </div>
       </div>
     </div>
@@ -691,7 +838,7 @@ function InfoCard({ icon: Icon, label, value }) {
 }
 
 function StatusPill({ label, className = "bg-violet-50 text-violet-700 dark:bg-violet-950/70 dark:text-violet-100" }) {
-  return <span className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${className}`}>{label}</span>;
+  return <span className={`inline-flex max-w-full break-words rounded-full px-3 py-1 text-xs font-black leading-snug ${className}`}>{label}</span>;
 }
 
 function formatDate(value) {
