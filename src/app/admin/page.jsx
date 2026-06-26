@@ -317,6 +317,20 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const updateUserKycStatus = async (id, status) => {
+    const rejectionReason = status === "rejected" ? window.prompt("Reason for rejection?", "KYC details could not be verified") || "" : "";
+    try {
+      const { data: response } = await api.put(`/admin/users/${id}/kyc`, { status, rejectionReason });
+      setData((current) => ({
+        ...current,
+        users: current.users.map((user) => user._id === id ? response.user : user)
+      }));
+      showToast(`KYC ${status}`);
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to update KYC", "error");
+    }
+  };
+
   const updatePaymentStatus = async (id, paymentStatus) => {
     try {
       const { data: response } = await api.put(`/bookings/${id}/payment-status`, { paymentStatus });
@@ -427,7 +441,7 @@ export default function AdminDashboardPage() {
               {activeTask === "bookings" && <BookingsPanel bookings={data.bookings} filters={filters} setFilters={setFilters} updateBookingStatus={updateBookingStatus} updatePaymentStatus={updatePaymentStatus} exportCsv={exportCsv} />}
               {activeTask === "contacts" && <ContactsPanel contacts={data.contacts} filters={filters} setFilters={setFilters} updateContactStatus={updateContactStatus} deleteContact={deleteContact} exportCsv={exportCsv} />}
               {activeTask === "activity" && <ActivityPanel logs={data.logs} pagination={logPagination} filters={filters} setFilters={setFilters} loadActivityLogs={loadActivityLogs} exportCsv={exportCsv} />}
-              {activeTask === "users" && <UsersPanel users={data.users} filters={filters} setFilters={setFilters} updateUserRole={updateUserRole} exportCsv={exportCsv} />}
+              {activeTask === "users" && <UsersPanel users={data.users} filters={filters} setFilters={setFilters} updateUserRole={updateUserRole} updateUserKycStatus={updateUserKycStatus} exportCsv={exportCsv} />}
               </section>
             </div>
           </div>
@@ -1064,7 +1078,7 @@ function ActivityPanel({ logs, pagination, filters, setFilters, loadActivityLogs
   );
 }
 
-function UsersPanel({ users, filters, setFilters, updateUserRole, exportCsv }) {
+function UsersPanel({ users, filters, setFilters, updateUserRole, updateUserKycStatus, exportCsv }) {
   const filteredUsers = users.filter((user) => {
     const q = filters.search.toLowerCase();
     return (!q || `${user.name} ${user.email} ${user.phone || ""}`.toLowerCase().includes(q)) && (!filters.role || user.role === filters.role);
@@ -1076,7 +1090,7 @@ function UsersPanel({ users, filters, setFilters, updateUserRole, exportCsv }) {
         <h2 className="text-lg font-black">Users</h2>
         <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
           <p className="mt-1 text-sm text-stone-500">Only admins can assign user, owner, or admin roles.</p>
-          <button className="btn-secondary" onClick={() => exportCsv("users.csv", filteredUsers.map((user) => ({ name: user.name, email: user.email, phone: user.phone, role: user.role })))}>
+          <button className="btn-secondary" onClick={() => exportCsv("users.csv", filteredUsers.map((user) => ({ name: user.name, email: user.email, phone: user.phone, role: user.role, kyc: user.kyc?.status || "not_submitted" })))}>
             Export CSV
           </button>
         </div>
@@ -1086,7 +1100,7 @@ function UsersPanel({ users, filters, setFilters, updateUserRole, exportCsv }) {
         <table className="w-full text-left text-sm">
           <thead className="bg-mist dark:bg-stone-800">
             <tr>
-              {["Name", "Email", "Phone", "Role"].map((header) => <th key={header} className="px-4 py-3 font-bold">{header}</th>)}
+              {["Name", "Email", "Phone", "Role", "KYC", "Action"].map((header) => <th key={header} className="px-4 py-3 font-bold">{header}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -1101,6 +1115,20 @@ function UsersPanel({ users, filters, setFilters, updateUserRole, exportCsv }) {
                     <option value="owner">owner</option>
                     <option value="admin">admin</option>
                   </select>
+                </td>
+                <td className="px-4 py-3">
+                  <span className={`rounded-full px-2 py-1 text-xs font-black ${
+                    user.kyc?.status === "approved" ? "bg-green-50 text-green-700" : user.kyc?.status === "rejected" ? "bg-red-50 text-red-700" : ["pending", "otp_pending"].includes(user.kyc?.status) ? "bg-amber-50 text-amber-700" : "bg-stone-100 text-stone-600"
+                  }`}>
+                    {(user.kyc?.status || "not_submitted").replace("_", " ")}
+                  </span>
+                  {user.kyc?.documentType && <p className="mt-1 text-xs text-stone-500">{user.kyc.legalName} · {user.kyc.documentType}</p>}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex flex-wrap gap-2">
+                    <button className="rounded-lg border border-green-200 px-3 py-2 text-xs font-black text-green-700 hover:bg-green-50 disabled:opacity-40" type="button" disabled={!["pending", "otp_pending"].includes(user.kyc?.status)} onClick={() => updateUserKycStatus(user._id, "approved")}>Approve</button>
+                    <button className="rounded-lg border border-red-200 px-3 py-2 text-xs font-black text-red-600 hover:bg-red-50 disabled:opacity-40" type="button" disabled={!["pending", "otp_pending"].includes(user.kyc?.status)} onClick={() => updateUserKycStatus(user._id, "rejected")}>Reject</button>
+                  </div>
                 </td>
               </tr>
             ))}

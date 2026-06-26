@@ -1,7 +1,9 @@
-import { CalendarClock, MapPin, Package, Percent, ShieldCheck, Star } from "lucide-react";
-import { conditionOf, itemTypeOf, minRentalDaysOf } from "@/lib/itemFields";
+import { CalendarClock, Package, Percent, ShieldCheck, Star } from "lucide-react";
+import { conditionOf, itemTypeOf, minRentalDaysOf, quantityOf } from "@/lib/itemFields";
 
 export default function PropertyDetails({ property }) {
+  const availableQuantity = quantityOf(property);
+  const isBookable = property.isAvailable && availableQuantity > 0;
   const facts = [
     { icon: CalendarClock, label: `${minRentalDaysOf(property)}+ rental days` },
     { icon: ShieldCheck, label: `${conditionOf(property)} condition` },
@@ -21,6 +23,11 @@ export default function PropertyDetails({ property }) {
           </div>
         </div>
         {property.offer && <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-meadow/10 px-3 py-1 text-sm font-black text-meadow"><Percent className="h-4 w-4" /> {property.offer}</p>}
+        {property.availabilityMessage && (
+          <div className={`mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-black ${isBookable ? "bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-300" : "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"}`}>
+            <CalendarClock className="h-4 w-4" /> {isBookable ? property.availabilityMessage : `Booked now. ${property.availabilityMessage}`}
+          </div>
+        )}
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {facts.map(({ icon: Icon, label }) => (

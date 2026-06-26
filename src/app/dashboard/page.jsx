@@ -344,17 +344,17 @@ function WishlistCard({ item, onRemove }) {
   const property = item.property;
   if (!property) return null;
   return (
-    <article className="overflow-hidden rounded-2xl border border-violet-100 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-soft dark:border-violet-900/70 dark:bg-stone-950/70">
+    <article className="min-w-0 overflow-hidden rounded-2xl border border-violet-100 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-soft dark:border-violet-900/70 dark:bg-stone-950/70">
       <Link href={`/items/${property._id}`} className="block aspect-[4/3] overflow-hidden bg-stone-100 dark:bg-stone-900">
         <img src={uploadUrl(property.images?.[0])} alt={property.title} className="h-full w-full object-cover transition hover:scale-105" />
       </Link>
-      <div className="p-4">
-        <h3 className="line-clamp-2 text-base font-black text-ink dark:text-white">{property.title}</h3>
+      <div className="min-w-0 p-4">
+        <h3 className="line-clamp-2 max-w-full break-words text-base font-black leading-snug text-ink dark:text-white">{property.title}</h3>
         <p className="mt-2 text-sm font-black text-meadow">₹{Number(property.rent || 0).toLocaleString()} / day</p>
-        <p className="mt-1 flex items-center gap-1 text-sm text-violet-950/60 dark:text-violet-100/65"><MapPin className="h-4 w-4" /> Pincode {property.pincode || "-"}</p>
+        <p className="mt-1 flex min-w-0 items-center gap-1 text-sm text-violet-950/60 dark:text-violet-100/65"><MapPin className="h-4 w-4 shrink-0" /> <span className="min-w-0 truncate">Pincode {property.pincode || "-"}</span></p>
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          <Link href={`/items/${property._id}`} className="btn-primary">Rent now</Link>
-          <button type="button" onClick={() => onRemove(property._id)} className="btn-secondary">Remove</button>
+          <Link href={`/items/${property._id}`} className="btn-primary min-w-0 text-center">Rent now</Link>
+          <button type="button" onClick={() => onRemove(property._id)} className="btn-secondary min-w-0">Remove</button>
         </div>
       </div>
     </article>
@@ -365,10 +365,10 @@ function WishlistMini({ item }) {
   const property = item.property;
   if (!property) return null;
   return (
-    <Link href={`/items/${property._id}`} className="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft dark:bg-stone-950/70">
-      <img src={uploadUrl(property.images?.[0])} alt={property.title} className="h-14 w-14 rounded-xl object-cover" />
+    <Link href={`/items/${property._id}`} className="flex min-w-0 items-center gap-3 overflow-hidden rounded-2xl bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft dark:bg-stone-950/70">
+      <img src={uploadUrl(property.images?.[0])} alt={property.title} className="h-14 w-14 shrink-0 rounded-xl object-cover" />
       <div className="min-w-0">
-        <p className="truncate text-sm font-black">{property.title}</p>
+        <p className="line-clamp-2 max-w-full break-words text-sm font-black leading-snug">{property.title}</p>
         <p className="text-xs font-semibold text-meadow">₹{Number(property.rent || 0).toLocaleString()} / day</p>
       </div>
     </Link>
@@ -376,6 +376,47 @@ function WishlistMini({ item }) {
 }
 
 function ProfilePanel({ user }) {
+  const { updateUser } = useAuth();
+  const { showToast } = useToast();
+  const [kycForm, setKycForm] = useState({
+    legalName: user?.kyc?.legalName || user?.name || "",
+    documentType: user?.kyc?.documentType || "aadhaar",
+    documentNumber: user?.kyc?.documentNumber || ""
+  });
+  const [kycOtp, setKycOtp] = useState("");
+  const [savingKyc, setSavingKyc] = useState(false);
+  const [verifyingKyc, setVerifyingKyc] = useState(false);
+  const kycStatus = user?.kyc?.status || "not_submitted";
+  const kycApproved = kycStatus === "approved";
+
+  const submitKyc = async (event) => {
+    event.preventDefault();
+    setSavingKyc(true);
+    try {
+      const { data } = await api.post("/auth/kyc", kycForm);
+      updateUser(data.user);
+      showToast(data.message || "KYC OTP sent to your email");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to submit KYC", "error");
+    } finally {
+      setSavingKyc(false);
+    }
+  };
+
+  const verifyKyc = async () => {
+    setVerifyingKyc(true);
+    try {
+      const { data } = await api.post("/auth/kyc/verify", { otp: kycOtp });
+      updateUser(data.user);
+      setKycOtp("");
+      showToast("KYC verified successfully");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to verify KYC OTP", "error");
+    } finally {
+      setVerifyingKyc(false);
+    }
+  };
+
   return (
     <div>
       <SectionHeader title="Profile" text="Your account details used for bookings and support." />
@@ -383,8 +424,56 @@ function ProfilePanel({ user }) {
         <InfoCard icon={UserRound} label="Name" value={user?.name || "-"} />
         <InfoCard icon={Bookmark} label="Role" value={user?.role || "user"} />
         <InfoCard icon={Bell} label="Email" value={user?.email || "-"} />
-        <InfoCard icon={ShieldCheck} label="Account" value="Protected" />
+        <InfoCard icon={ShieldCheck} label="KYC" value={kycStatus.replace("_", " ")} />
       </div>
+      <form onSubmit={submitKyc} className="mt-5 rounded-2xl border border-violet-100 bg-mist/70 p-5 dark:border-violet-900/70 dark:bg-white/10">
+        <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
+          <div>
+            <h3 className="text-lg font-black text-ink dark:text-white">KYC Verification</h3>
+            <p className="mt-1 text-sm text-violet-950/60 dark:text-violet-100/65">Submit identity details and verify the OTP sent to your registered email before bookings.</p>
+          </div>
+          <span className={`w-fit rounded-full px-3 py-1 text-xs font-black ${
+            kycStatus === "approved" ? "bg-green-50 text-green-700" : kycStatus === "rejected" ? "bg-red-50 text-red-700" : ["pending", "otp_pending"].includes(kycStatus) ? "bg-amber-50 text-amber-700" : "bg-violet-50 text-violet-700"
+          }`}>
+            {kycStatus.replace("_", " ")}
+          </span>
+        </div>
+        {user?.kyc?.rejectionReason && <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700">{user.kyc.rejectionReason}</p>}
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <label className="space-y-2">
+            <span className="text-sm font-black">Legal name</span>
+            <input className="field disabled:cursor-not-allowed disabled:opacity-70" disabled={kycApproved} value={kycForm.legalName} onChange={(event) => setKycForm((current) => ({ ...current, legalName: event.target.value }))} />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-black">Document type</span>
+            <select className="field disabled:cursor-not-allowed disabled:opacity-70" disabled={kycApproved} value={kycForm.documentType} onChange={(event) => setKycForm((current) => ({ ...current, documentType: event.target.value }))}>
+              <option value="aadhaar">Aadhaar</option>
+              <option value="pan">PAN</option>
+              <option value="passport">Passport</option>
+              <option value="driving_license">Driving license</option>
+              <option value="voter_id">Voter ID</option>
+            </select>
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-black">Document number</span>
+            <input className="field uppercase disabled:cursor-not-allowed disabled:opacity-70" disabled={kycApproved} value={kycForm.documentNumber} onChange={(event) => setKycForm((current) => ({ ...current, documentNumber: event.target.value.toUpperCase() }))} />
+          </label>
+        </div>
+        <button className="btn-primary mt-4" type="submit" disabled={savingKyc || kycApproved}>
+          {savingKyc ? "Sending OTP..." : kycApproved ? "KYC approved" : kycStatus === "otp_pending" ? "Resend OTP" : "Submit KYC"}
+        </button>
+        {kycStatus === "otp_pending" && (
+          <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50/80 p-4 dark:border-amber-900/60 dark:bg-amber-950/20">
+            <p className="text-sm font-black text-amber-800 dark:text-amber-100">Enter the 6-digit OTP sent to {user?.email}</p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <input className="field tracking-[0.35em]" inputMode="numeric" maxLength={6} placeholder="000000" value={kycOtp} onChange={(event) => setKycOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} />
+              <button className="btn-primary shrink-0" type="button" disabled={verifyingKyc || kycOtp.length !== 6} onClick={verifyKyc}>
+                {verifyingKyc ? "Verifying..." : "Verify OTP"}
+              </button>
+            </div>
+          </div>
+        )}
+      </form>
     </div>
   );
 }
