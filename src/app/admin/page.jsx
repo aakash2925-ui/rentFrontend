@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BarChart3, Boxes, CalendarCheck, History, ImagePlus, LayoutDashboard, Mail, Menu, Package, PackageCheck, PackagePlus, Pencil, Save, Tags, TicketPercent, Trash2, Users, X } from "lucide-react";
+import { BarChart3, Boxes, CalendarCheck, History, ImagePlus, LayoutDashboard, Mail, Menu, Package, PackageCheck, PackagePlus, Pencil, Phone, Save, ShieldCheck, Tags, TicketPercent, Trash2, Users, X } from "lucide-react";
 import api, { uploadUrl } from "@/lib/api";
 import { conditionOf, itemTypeOf, quantityOf } from "@/lib/itemFields";
 import ErrorMessage from "@/components/common/ErrorMessage";
@@ -331,6 +331,20 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const deleteUserKyc = async (user) => {
+    if (!window.confirm(`Delete KYC details for ${user.email}? This will remove document details and the uploaded KYC photo.`)) return;
+    try {
+      const { data: response } = await api.delete(`/admin/users/${user._id}/kyc`);
+      setData((current) => ({
+        ...current,
+        users: current.users.map((item) => item._id === user._id ? response.user : item)
+      }));
+      showToast("KYC deleted");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to delete KYC", "error");
+    }
+  };
+
   const updatePaymentStatus = async (id, paymentStatus) => {
     try {
       const { data: response } = await api.put(`/bookings/${id}/payment-status`, { paymentStatus });
@@ -441,7 +455,7 @@ export default function AdminDashboardPage() {
               {activeTask === "bookings" && <BookingsPanel bookings={data.bookings} filters={filters} setFilters={setFilters} updateBookingStatus={updateBookingStatus} updatePaymentStatus={updatePaymentStatus} exportCsv={exportCsv} />}
               {activeTask === "contacts" && <ContactsPanel contacts={data.contacts} filters={filters} setFilters={setFilters} updateContactStatus={updateContactStatus} deleteContact={deleteContact} exportCsv={exportCsv} />}
               {activeTask === "activity" && <ActivityPanel logs={data.logs} pagination={logPagination} filters={filters} setFilters={setFilters} loadActivityLogs={loadActivityLogs} exportCsv={exportCsv} />}
-              {activeTask === "users" && <UsersPanel users={data.users} filters={filters} setFilters={setFilters} updateUserRole={updateUserRole} updateUserKycStatus={updateUserKycStatus} exportCsv={exportCsv} />}
+              {activeTask === "users" && <UsersPanel users={data.users} filters={filters} setFilters={setFilters} updateUserRole={updateUserRole} updateUserKycStatus={updateUserKycStatus} deleteUserKyc={deleteUserKyc} exportCsv={exportCsv} />}
               </section>
             </div>
           </div>
@@ -1078,66 +1092,150 @@ function ActivityPanel({ logs, pagination, filters, setFilters, loadActivityLogs
   );
 }
 
-function UsersPanel({ users, filters, setFilters, updateUserRole, updateUserKycStatus, exportCsv }) {
+function UsersPanel({ users, filters, setFilters, updateUserRole, updateUserKycStatus, deleteUserKyc, exportCsv }) {
   const filteredUsers = users.filter((user) => {
     const q = filters.search.toLowerCase();
     return (!q || `${user.name} ${user.email} ${user.phone || ""}`.toLowerCase().includes(q)) && (!filters.role || user.role === filters.role);
   });
+  const userStats = [
+    { label: "Total Users", value: users.length, icon: Users, tone: "bg-violet-100 text-violet-700 dark:bg-violet-950/70 dark:text-violet-100" },
+    { label: "Admins", value: users.filter((user) => user.role === "admin").length, icon: ShieldCheck, tone: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-100" },
+    { label: "KYC Pending", value: users.filter((user) => ["pending", "otp_pending"].includes(user.kyc?.status)).length, icon: CalendarCheck, tone: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-100" },
+    { label: "KYC Approved", value: users.filter((user) => user.kyc?.status === "approved").length, icon: PackageCheck, tone: "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-950/50 dark:text-fuchsia-100" }
+  ];
 
   return (
-    <section className="overflow-hidden rounded-lg border border-stone-200 bg-white dark:border-stone-800 dark:bg-stone-900">
-      <div className="border-b border-stone-200 p-4 dark:border-stone-800">
-        <h2 className="text-lg font-black">Users</h2>
-        <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
-          <p className="mt-1 text-sm text-stone-500">Only admins can assign user, owner, or admin roles.</p>
-          <button className="btn-secondary" onClick={() => exportCsv("users.csv", filteredUsers.map((user) => ({ name: user.name, email: user.email, phone: user.phone, role: user.role, kyc: user.kyc?.status || "not_submitted" })))}>
+    <section className="space-y-5">
+      <div className="overflow-hidden rounded-[1.5rem] border border-violet-100 bg-gradient-to-br from-violet-950 via-violet-800 to-fuchsia-700 p-5 text-white shadow-soft dark:border-violet-900">
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-wide text-violet-100">Admin Users</p>
+            <h2 className="mt-1 text-2xl font-black">User management</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-violet-100/75">Review customer accounts, update roles, approve KYC, and inspect identity photos from one clean workspace.</p>
+          </div>
+          <button className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white px-4 py-3 text-sm font-black text-violet-800 shadow-soft transition hover:-translate-y-0.5 hover:shadow-glow" onClick={() => exportCsv("users.csv", filteredUsers.map((user) => ({ name: user.name, email: user.email, phone: user.phone, role: user.role, kyc: user.kyc?.status || "not_submitted" })))}>
             Export CSV
           </button>
         </div>
       </div>
-      <AdminFilters filters={filters} setFilters={setFilters} roleOptions={[["", "All roles"], ["user", "user"], ["owner", "owner"], ["admin", "admin"]]} />
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-mist dark:bg-stone-800">
-            <tr>
-              {["Name", "Email", "Phone", "Role", "KYC", "Action"].map((header) => <th key={header} className="px-4 py-3 font-bold">{header}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {filteredUsers.map((user) => (
-              <tr key={user._id} className="border-t border-stone-100 dark:border-stone-800">
-                <td className="px-4 py-3 font-semibold">{user.name}</td>
-                <td className="px-4 py-3">{user.email}</td>
-                <td className="px-4 py-3">{user.phone || "-"}</td>
-                <td className="px-4 py-3">
-                  <select className="field max-w-40" value={user.role} onChange={(event) => updateUserRole(user._id, event.target.value)}>
-                    <option value="user">user</option>
-                    <option value="owner">owner</option>
-                    <option value="admin">admin</option>
-                  </select>
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`rounded-full px-2 py-1 text-xs font-black ${
-                    user.kyc?.status === "approved" ? "bg-green-50 text-green-700" : user.kyc?.status === "rejected" ? "bg-red-50 text-red-700" : ["pending", "otp_pending"].includes(user.kyc?.status) ? "bg-amber-50 text-amber-700" : "bg-stone-100 text-stone-600"
-                  }`}>
-                    {(user.kyc?.status || "not_submitted").replace("_", " ")}
-                  </span>
-                  {user.kyc?.documentType && <p className="mt-1 text-xs text-stone-500">{user.kyc.legalName} · {user.kyc.documentType}</p>}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-2">
-                    <button className="rounded-lg border border-green-200 px-3 py-2 text-xs font-black text-green-700 hover:bg-green-50 disabled:opacity-40" type="button" disabled={!["pending", "otp_pending"].includes(user.kyc?.status)} onClick={() => updateUserKycStatus(user._id, "approved")}>Approve</button>
-                    <button className="rounded-lg border border-red-200 px-3 py-2 text-xs font-black text-red-600 hover:bg-red-50 disabled:opacity-40" type="button" disabled={!["pending", "otp_pending"].includes(user.kyc?.status)} onClick={() => updateUserKycStatus(user._id, "rejected")}>Reject</button>
-                  </div>
-                </td>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {userStats.map(({ label, value, icon: Icon, tone }) => (
+          <div key={label} className="rounded-2xl border border-violet-100 bg-white p-4 shadow-sm dark:border-violet-900/70 dark:bg-stone-950/70">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-violet-950/55 dark:text-violet-100/60">{label}</p>
+                <p className="mt-1 text-3xl font-black text-ink dark:text-white">{value}</p>
+              </div>
+              <span className={`flex h-12 w-12 items-center justify-center rounded-2xl ${tone}`}>
+                <Icon className="h-5 w-5" />
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-[1.35rem] border border-violet-100 bg-white/90 p-4 shadow-sm dark:border-violet-900/70 dark:bg-white/10">
+        <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+          <label className="flex items-center gap-2 rounded-2xl border border-violet-100 bg-mist/70 px-4 py-3 dark:border-violet-900/70 dark:bg-stone-950/50">
+            <Users className="h-4 w-4 shrink-0 text-violet-500" />
+            <input className="w-full bg-transparent text-sm font-semibold outline-none placeholder:text-violet-950/45 dark:placeholder:text-violet-100/45" placeholder="Search by name, email, or phone" value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} />
+          </label>
+          <select className="field" value={filters.role} onChange={(event) => setFilters((current) => ({ ...current, role: event.target.value }))}>
+            <option value="">All roles</option>
+            <option value="user">Users</option>
+            <option value="owner">Owners</option>
+            <option value="admin">Admins</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-[1.35rem] border border-violet-100 bg-white shadow-soft dark:border-violet-900/70 dark:bg-stone-950/70">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] text-left text-sm">
+            <thead className="bg-violet-50 text-xs uppercase tracking-wide text-violet-950/65 dark:bg-violet-950/60 dark:text-violet-100/70">
+              <tr>
+                {["User", "Contact", "Role", "KYC", "Actions"].map((header) => (
+                  <th key={header} className="px-5 py-4 font-black">{header}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {!filteredUsers.length && <div className="p-4"><EmptyState title="No matching users" message="Registered accounts will appear here." /></div>}
+            </thead>
+            <tbody>
+              {filteredUsers.map((user) => {
+                const kycStatus = user.kyc?.status || "not_submitted";
+                const canReviewKyc = ["pending", "otp_pending"].includes(kycStatus);
+                const initials = (user.name || user.email || "U").split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+                return (
+                  <tr key={user._id} className="border-t border-violet-100 transition hover:bg-violet-50/60 dark:border-violet-900/70 dark:hover:bg-white/5">
+                    <td className="px-5 py-4">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-700 to-fuchsia-500 text-sm font-black text-white shadow-sm">
+                          {initials}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="max-w-[220px] break-words font-black leading-snug text-ink dark:text-white">{user.name}</p>
+                          <span className="mt-1 inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-black text-violet-700 dark:bg-violet-950/70 dark:text-violet-100">{user.role}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="grid gap-1 text-violet-950/65 dark:text-violet-100/70">
+                        <span className="flex min-w-0 items-center gap-2"><Mail className="h-4 w-4 shrink-0 text-meadow" /><span className="max-w-[260px] break-words">{user.email}</span></span>
+                        <span className="flex min-w-0 items-center gap-2"><Phone className="h-4 w-4 shrink-0 text-meadow" /><span className="max-w-[220px] break-words">{user.phone || "-"}</span></span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      <select className="field min-w-36" value={user.role} onChange={(event) => updateUserRole(user._id, event.target.value)}>
+                        <option value="user">user</option>
+                        <option value="owner">owner</option>
+                        <option value="admin">admin</option>
+                      </select>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="min-w-0">
+                        <KycStatusPill status={kycStatus} />
+                        {user.kyc?.documentType ? (
+                          <p className="mt-2 max-w-[260px] break-words text-xs font-semibold text-violet-950/55 dark:text-violet-100/55">{user.kyc.legalName || user.name} · {user.kyc.documentType}</p>
+                        ) : (
+                          <p className="mt-2 text-xs font-semibold text-violet-950/45 dark:text-violet-100/45">No KYC submitted</p>
+                        )}
+                        {user.kyc?.selfieWithIdImage && (
+                          <a href={uploadUrl(user.kyc.selfieWithIdImage)} target="_blank" rel="noreferrer" className="mt-2 inline-flex rounded-lg bg-violet-700 px-2.5 py-1.5 text-xs font-black text-white transition hover:bg-violet-800">
+                            View photo
+                          </a>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex min-w-[230px] flex-wrap gap-2">
+                        <button className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs font-black text-green-700 transition hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-green-900/70 dark:bg-green-950/30 dark:text-green-200" type="button" disabled={!canReviewKyc} onClick={() => updateUserKycStatus(user._id, "approved")}>Approve</button>
+                        <button className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-200" type="button" disabled={!canReviewKyc} onClick={() => updateUserKycStatus(user._id, "rejected")}>Reject</button>
+                        <button className="rounded-xl border border-stone-300 bg-white px-3 py-2 text-xs font-black text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-stone-700 dark:bg-white/10 dark:text-stone-200 dark:hover:bg-stone-800" type="button" disabled={!user.kyc || kycStatus === "not_submitted"} onClick={() => deleteUserKyc(user)}>
+                          <Trash2 className="mr-1 inline h-3.5 w-3.5" /> Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {!filteredUsers.length && <div className="p-5"><EmptyState title="No matching users" message="Registered accounts will appear here." /></div>}
       </div>
     </section>
   );
+}
+
+function KycStatusPill({ status }) {
+  const className = status === "approved"
+    ? "bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-200"
+    : status === "rejected"
+      ? "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-200"
+      : ["pending", "otp_pending"].includes(status)
+        ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
+        : "bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-200";
+  return <span className={`rounded-full px-3 py-1 text-xs font-black ${className}`}>{status.replace("_", " ")}</span>;
 }
 
 function AdminFilters({ filters, setFilters, typeOptions = [], statusOptions = [], roleOptions = [], showDates = false }) {
