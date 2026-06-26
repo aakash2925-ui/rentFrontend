@@ -34,7 +34,20 @@ export default function PropertyDetailPage({ params }) {
   useEffect(() => {
     if (!property) return;
     const stored = JSON.parse(localStorage.getItem("recent_items") || "[]").filter((item) => item._id !== property._id);
-    const next = [{ _id: property._id, title: property.title, rent: property.rent, images: property.images, pincode: property.pincode, quantity: property.quantity, minRentalDays: property.minRentalDays, offer: property.offer, isAvailable: property.isAvailable }, ...stored].slice(0, 4);
+    const next = [{
+      _id: property._id,
+      title: property.title,
+      rent: property.rent,
+      images: property.images,
+      pincode: property.pincode,
+      quantity: property.quantity,
+      minRentalDays: property.minRentalDays,
+      offer: property.offer,
+      isAvailable: property.isAvailable,
+      nextAvailableAt: property.nextAvailableAt,
+      availableInDays: property.availableInDays,
+      availabilityMessage: property.availabilityMessage
+    }, ...stored].slice(0, 4);
     localStorage.setItem("recent_items", JSON.stringify(next));
     setRecentlyViewed(stored.slice(0, 3));
   }, [property]);

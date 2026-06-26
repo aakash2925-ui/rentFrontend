@@ -19,6 +19,18 @@ function toDateInputValue(date) {
   return localDate.toISOString().slice(0, 10);
 }
 
+function addDaysToInputDate(value, days) {
+  const date = new Date(`${value}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return toDateInputValue(date);
+}
+
+function laterDateInputValue(first, second) {
+  if (!first) return second;
+  if (!second) return first;
+  return first > second ? first : second;
+}
+
 function loadRazorpay() {
   return new Promise((resolve, reject) => {
     if (window.Razorpay) return resolve();
@@ -73,6 +85,12 @@ export default function InquiryForm({ property }) {
   const deliveryDistanceKm = 0;
   const availableQuantity = quantityOf(property);
   const minRentalDays = minRentalDaysOf(property);
+  const nextAvailableDate = useMemo(() => {
+    if (!property.nextAvailableAt) return "";
+    const value = toDateInputValue(new Date(property.nextAvailableAt));
+    return value >= today ? value : "";
+  }, [property.nextAvailableAt, today]);
+  const earliestStartDate = useMemo(() => laterDateInputValue(today, nextAvailableDate), [nextAvailableDate, today]);
   const pricing = useMemo(() => calculateRentalPricing({
     rent: property.rent,
     deposit: property.deposit,
@@ -95,11 +113,12 @@ export default function InquiryForm({ property }) {
   };
 
   const updateStartDate = (value) => {
+    const safeStartDate = laterDateInputValue(value, earliestStartDate);
     clearAppliedVoucher("Voucher removed. Apply it again after changing rental dates.");
     setForm((current) => ({
       ...current,
-      startDate: value,
-      endDate: current.endDate && current.endDate < value ? "" : current.endDate
+      startDate: safeStartDate,
+      endDate: current.endDate && current.endDate < safeStartDate ? "" : current.endDate
     }));
   };
 
@@ -164,9 +183,11 @@ export default function InquiryForm({ property }) {
 
   const validateStep = useCallback((targetStep = step) => {
     if (!user) return "Please login before booking this item.";
+    if (user.kyc?.status !== "approved") return "Please complete OTP-based KYC verification from your dashboard profile before booking.";
     if (!form.startDate) return "Start date is required.";
     if (!form.endDate) return "End date is required.";
     if (form.startDate < today) return "Start date cannot be before today.";
+    if (form.startDate < earliestStartDate) return `This item is booked now. Please select ${earliestStartDate} or later.`;
     if (form.endDate < form.startDate) return "End date cannot be before start date.";
     if (rentalDays < minRentalDays) return `Minimum rental duration is ${minRentalDays} day(s).`;
     if (availableQuantity < 1) return "This item is currently out of stock.";
@@ -181,7 +202,7 @@ export default function InquiryForm({ property }) {
       if (availability.status !== "available") return "Check PIN code availability before proceeding to payment.";
     }
     return "";
-  }, [availableQuantity, availability.status, form.city, form.endDate, form.fullName, form.houseFlatNo, form.mobileNumber, form.pincode, form.startDate, form.state, form.streetArea, minRentalDays, rentalDays, step, today, user]);
+  }, [availableQuantity, availability.status, earliestStartDate, form.city, form.endDate, form.fullName, form.houseFlatNo, form.mobileNumber, form.pincode, form.startDate, form.state, form.streetArea, minRentalDays, rentalDays, step, today, user]);
 
   useEffect(() => {
     setError("");
@@ -195,6 +216,17 @@ export default function InquiryForm({ property }) {
       mobileNumber: current.mobileNumber || user.phone || ""
     }));
   }, [user]);
+
+  useEffect(() => {
+    if (!earliestStartDate) return;
+    setForm((current) => {
+      const startDate = !current.startDate || current.startDate < earliestStartDate ? earliestStartDate : current.startDate;
+      const minimumEndDate = addDaysToInputDate(startDate, minRentalDays);
+      const endDate = !current.endDate || current.endDate < minimumEndDate ? minimumEndDate : current.endDate;
+      if (current.startDate === startDate && current.endDate === endDate) return current;
+      return { ...current, startDate, endDate };
+    });
+  }, [earliestStartDate, minRentalDays]);
 
   useEffect(() => {
     stepRefs.current[step]?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
@@ -467,6 +499,11 @@ export default function InquiryForm({ property }) {
               <SummaryRow label="Daily rent" value={`₹${Number(property.rent || 0).toLocaleString()}`} />
               <SummaryRow label="Refundable deposit" value={`₹${Number(property.deposit || 0).toLocaleString()}`} />
               {property.offer && <p className="mt-3 rounded-xl bg-meadow/10 px-3 py-2 text-sm font-black text-meadow">{property.offer}</p>}
+              {nextAvailableDate && (
+                <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm font-black text-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
+                  This item is booked now. Rental dates start from {nextAvailableDate}.
+                </p>
+              )}
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="space-y-2">
@@ -474,7 +511,7 @@ export default function InquiryForm({ property }) {
                 <input
                   className="field"
                   type="date"
-                  min={today}
+                  min={earliestStartDate}
                   required
                   value={form.startDate}
                   onChange={(e) => updateStartDate(e.target.value)}
@@ -482,7 +519,7 @@ export default function InquiryForm({ property }) {
               </label>
               <label className="space-y-2">
                 <span className="text-sm font-black text-violet-950 dark:text-white">End date</span>
-                <input className="field" type="date" min={form.startDate || today} required value={form.endDate} onChange={(e) => updateEndDate(e.target.value)} />
+                <input className="field" type="date" min={form.startDate || earliestStartDate} required value={form.endDate} onChange={(e) => updateEndDate(e.target.value)} />
               </label>
             </div>
             <div className="rounded-[1.35rem] border border-violet-100 bg-white/90 p-4 shadow-sm dark:border-violet-900/70 dark:bg-stone-950/40">

@@ -25,7 +25,7 @@ export default function AddToCartButton({ property, className = "", compact = fa
       return;
     }
     if (disabled) {
-      showToast("This item is out of stock", "error");
+      showToast(property.availabilityMessage ? `This item is booked. ${property.availabilityMessage}` : "This item is out of stock", "error");
       return;
     }
     if (inCart) {

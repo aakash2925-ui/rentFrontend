@@ -12,7 +12,7 @@ export default function PropertyCard({ property }) {
   const [activeImage, setActiveImage] = useState(0);
   const images = property.images?.length ? property.images : [null];
   const quantity = quantityOf(property);
-  const badge = !property.isAvailable || quantity === 0 ? "Out of stock" : quantity <= 2 ? "Low stock" : "Available";
+  const badge = !property.isAvailable || quantity === 0 ? property.nextAvailableAt ? "Booked" : "Out of stock" : quantity <= 2 ? "Low stock" : "Available";
   const badgeClass = badge === "Available" ? "bg-green-50 text-green-700" : badge === "Low stock" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700";
 
   const moveImage = (event, direction) => {
@@ -48,6 +48,11 @@ export default function PropertyCard({ property }) {
           <p className="whitespace-nowrap text-sm font-black text-meadow">₹{Number(property.rent).toLocaleString()}</p>
         </div>
         <p className="mt-2 flex items-center gap-1 text-sm text-stone-500 dark:text-stone-400"><MapPin className="h-4 w-4" /> Pincode {property.pincode}</p>
+        {property.availabilityMessage && (
+          <p className={`mt-2 flex items-center gap-1 text-sm font-bold ${badge === "Available" || badge === "Low stock" ? "text-green-700 dark:text-green-300" : "text-amber-700 dark:text-amber-300"}`}>
+            <CalendarClock className="h-4 w-4" /> {property.availabilityMessage}
+          </p>
+        )}
         {property.offer && <p className="mt-2 flex items-center gap-1 text-sm font-bold text-meadow"><Percent className="h-4 w-4" /> {property.offer}</p>}
         <div className="mt-4 grid gap-2 text-xs text-stone-600 dark:text-stone-300">
           <span className="flex items-center gap-1"><CalendarClock className="h-4 w-4" /> {minRentalDaysOf(property)}+ days</span>

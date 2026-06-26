@@ -98,6 +98,58 @@ export default function HomePage() {
   return (
     <>
       <HeroSection />
+
+      <section id="browse-categories" className="mx-auto max-w-7xl px-4 py-12">
+        <div className="mb-5">
+          <p className="text-sm font-bold uppercase tracking-wide text-meadow">Browse by category</p>
+          <h2 className="mt-2 text-3xl font-black text-ink dark:text-white md:text-4xl">Find what you need faster</h2>
+        </div>
+        {categories.length ? (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {categories.slice(0, 8).map((type) => {
+              const Icon = categoryIcons[type.name.toLowerCase()] || Tags;
+              const cardImages = type.images || (type.image ? [type.image] : [fallbackCategoryImages.default]);
+              return (
+                <Link
+                  key={type.name}
+                  href={`/items?type=${encodeURIComponent(type.name)}`}
+                  className="group reveal-card relative overflow-hidden rounded-[1.75rem] border border-white/70 bg-white/82 p-3 shadow-soft transition duration-300 hover:-translate-y-2 hover:border-violet-300 hover:shadow-glow dark:border-violet-900/70 dark:bg-white/10"
+                >
+                  <div className="relative aspect-[16/11] overflow-hidden rounded-[1.35rem] bg-violet-100 dark:bg-violet-950/70">
+                    {cardImages.length > 1 ? (
+                      <div className="grid h-full grid-cols-[1.42fr_0.9fr] gap-2 bg-violet-950/20 p-2">
+                        <img src={cardImages[0]} alt={`${type.name} rental`} className="h-full w-full rounded-[1rem] object-cover transition duration-700 group-hover:scale-105" />
+                        <div className="grid gap-2">
+                          <img src={cardImages[1]} alt="Projector rental" className="h-full min-h-0 w-full rounded-[0.85rem] object-cover transition duration-700 group-hover:scale-105" />
+                          <img src={cardImages[2]} alt="Speaker rental" className="h-full min-h-0 w-full rounded-[0.85rem] object-cover transition duration-700 group-hover:scale-105" />
+                        </div>
+                      </div>
+                    ) : cardImages.length ? (
+                      <img src={cardImages[0]} alt={type.name} className="h-full w-full object-cover transition duration-700 group-hover:scale-110" />
+                    ) : (
+                      <div className="flex h-full items-center justify-center"><Icon className="h-12 w-12 text-meadow" /></div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-ink/58 via-transparent to-transparent opacity-90 transition group-hover:opacity-100" />
+                  </div>
+                  <div className="flex items-center justify-between gap-4 px-2 py-4">
+                    <div className="min-w-0">
+                      <h3 className="text-xl font-black leading-tight text-ink dark:text-white">{type.name}</h3>
+                      <p className="mt-1 text-sm text-violet-950/60 dark:text-violet-100/62">Browse collection</p>
+                    </div>
+                    <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-gradient-to-br from-violet-700 to-fuchsia-500 px-4 py-2 text-xs font-black text-white shadow-soft transition group-hover:translate-x-1">
+                      Explore <ArrowRight className="h-4 w-4" />
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-violet-100 bg-white/80 p-6 text-sm font-semibold text-violet-950/60 shadow-sm dark:border-violet-900/70 dark:bg-white/10 dark:text-violet-100/65">
+            Categories will appear here once item types are added from the admin portal.
+          </div>
+        )}
+      </section>
       <section className="border-y border-violet-100 bg-white/70 backdrop-blur dark:border-violet-900/70 dark:bg-[#160b29]/82">
         <div className="mx-auto grid max-w-7xl gap-4 px-4 py-6 sm:grid-cols-3">
           {[
@@ -111,57 +163,6 @@ export default function HomePage() {
             </div>
           ))}
         </div>
-      </section>
-      <section id="browse-categories" className="mx-auto max-w-7xl px-4 py-12">
-        <div className="mb-5">
-          <p className="text-sm font-bold uppercase tracking-wide text-meadow">Browse by category</p>
-          <h2 className="mt-2 text-3xl font-black text-ink dark:text-white md:text-4xl">Find what you need faster</h2>
-        </div>
-        {categories.length ? (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {categories.slice(0, 8).map((type) => {
-            const Icon = categoryIcons[type.name.toLowerCase()] || Tags;
-            const cardImages = type.images || (type.image ? [type.image] : [fallbackCategoryImages.default]);
-            return (
-              <Link
-                key={type.name}
-                href={`/items?type=${encodeURIComponent(type.name)}`}
-                className="group reveal-card relative overflow-hidden rounded-[1.75rem] border border-white/70 bg-white/82 p-3 shadow-soft transition duration-300 hover:-translate-y-2 hover:border-violet-300 hover:shadow-glow dark:border-violet-900/70 dark:bg-white/10"
-              >
-                <div className="relative aspect-[16/11] overflow-hidden rounded-[1.35rem] bg-violet-100 dark:bg-violet-950/70">
-                  {cardImages.length > 1 ? (
-                    <div className="grid h-full grid-cols-[1.42fr_0.9fr] gap-2 bg-violet-950/20 p-2">
-                      <img src={cardImages[0]} alt={`${type.name} rental`} className="h-full w-full rounded-[1rem] object-cover transition duration-700 group-hover:scale-105" />
-                      <div className="grid gap-2">
-                        <img src={cardImages[1]} alt="Projector rental" className="h-full min-h-0 w-full rounded-[0.85rem] object-cover transition duration-700 group-hover:scale-105" />
-                        <img src={cardImages[2]} alt="Speaker rental" className="h-full min-h-0 w-full rounded-[0.85rem] object-cover transition duration-700 group-hover:scale-105" />
-                      </div>
-                    </div>
-                  ) : cardImages.length ? (
-                    <img src={cardImages[0]} alt={type.name} className="h-full w-full object-cover transition duration-700 group-hover:scale-110" />
-                  ) : (
-                    <div className="flex h-full items-center justify-center"><Icon className="h-12 w-12 text-meadow" /></div>
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-ink/58 via-transparent to-transparent opacity-90 transition group-hover:opacity-100" />
-                </div>
-                <div className="flex items-center justify-between gap-4 px-2 py-4">
-                  <div className="min-w-0">
-                    <h3 className="text-xl font-black leading-tight text-ink dark:text-white">{type.name}</h3>
-                    <p className="mt-1 text-sm text-violet-950/60 dark:text-violet-100/62">Browse collection</p>
-                  </div>
-                  <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-gradient-to-br from-violet-700 to-fuchsia-500 px-4 py-2 text-xs font-black text-white shadow-soft transition group-hover:translate-x-1">
-                    Explore <ArrowRight className="h-4 w-4" />
-                  </span>
-                </div>
-              </Link>
-            );
-            })}
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-violet-100 bg-white/80 p-6 text-sm font-semibold text-violet-950/60 shadow-sm dark:border-violet-900/70 dark:bg-white/10 dark:text-violet-100/65">
-            Categories will appear here once item types are added from the admin portal.
-          </div>
-        )}
       </section>
       <section className="bg-gradient-to-br from-violet-950 via-[#2a1150] to-fuchsia-950 py-14 text-white">
         <div className="mx-auto max-w-7xl px-4">
