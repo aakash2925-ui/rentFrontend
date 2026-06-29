@@ -26,43 +26,32 @@ export default function Navbar() {
   const blurTimer = useRef(null);
 
   useEffect(() => {
-    const search = query.trim();
-    if (search.length < 3) {
+
+    const term = query.trim();
+    if (term.length < 3) {
       setSuggestions([]);
       setSuggestionLoading(false);
-      return;
+      return undefined;
     }
 
-    const timer = setTimeout(async () => {
-      setSuggestionLoading(true);
-      try {
-        const { data } = await api.get("/properties", { params: { search, limit: 6 } });
-        setSuggestions(data.properties || []);
-      } catch {
-        setSuggestions([]);
-      } finally {
-        setSuggestionLoading(false);
-      }
+    setSuggestionLoading(true);
+    const timer = setTimeout(() => {
+      api.get("/properties", { params: { search: term, limit: 6 } })
+        .then(({ data }) => setSuggestions(data.properties || []))
+        .catch(() => setSuggestions([]))
+        .finally(() => setSuggestionLoading(false));
     }, 250);
 
     return () => clearTimeout(timer);
   }, [query]);
-
-  useEffect(() => () => {
-    if (blurTimer.current) clearTimeout(blurTimer.current);
-  }, []);
-
-  const closeMenu = () => {
-    setOpen(false);
-    setShowSuggestions(false);
-  };
 
   const searchItems = (event) => {
     event.preventDefault();
     const params = new URLSearchParams();
     if (query.trim()) params.set("search", query.trim());
     router.push(`/items${params.toString() ? `?${params.toString()}` : ""}`);
-    closeMenu();
+    setShowSuggestions(false);
+    setOpen(false);
   };
 
   const focusSearch = () => {
@@ -74,6 +63,10 @@ export default function Navbar() {
     blurTimer.current = setTimeout(() => setShowSuggestions(false), 150);
   };
 
+  const closeMenu = () => {
+    setOpen(false);
+    setShowSuggestions(false);
+  };
   const openSuggestion = (item) => {
     setQuery(item.title || "");
     closeMenu();
@@ -99,9 +92,7 @@ export default function Navbar() {
                   <span className="line-clamp-1 text-sm font-black">{item.title}</span>
                   <span className="mt-1 block text-xs font-semibold text-violet-950/55 dark:text-violet-100/55">{item.itemType || item.propertyType || "Rental item"}</span>
                 </span>
-                <span className="shrink-0 rounded-full bg-violet-50 px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-wide text-meadow dark:bg-white/10">
-                  Item
-                </span>
+                <span className="shrink-0 text-xs font-black text-meadow">₹{Number(item.rent || 0).toLocaleString()}</span>
               </button>
             ))}
           </div>
@@ -115,7 +106,7 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-40 border-b border-violet-100 bg-white/85 shadow-sm backdrop-blur-xl dark:border-violet-900/70 dark:bg-[#11071f]/88">
       <nav className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
-        <Link href="/" className="group flex items-center" aria-label="Zasoota home">
+        <Link href="/" onClick={closeMenu} className="group flex items-center" aria-label="Zasoota home">
           <img
             src="/zasoota-logo.svg"
             alt="Zasoota logo"
