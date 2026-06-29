@@ -1,11 +1,7 @@
 "use client";
 
 import Link from "next/link";
-<<<<<<< Updated upstream
-import { CalendarClock, ChevronLeft, ChevronRight, MapPin, Percent } from "lucide-react";
-=======
 import { CalendarClock, ChevronLeft, ChevronRight } from "lucide-react";
->>>>>>> Stashed changes
 import { useState } from "react";
 import { uploadUrl } from "@/lib/api";
 import { minRentalDaysOf } from "@/lib/itemFields";
@@ -46,16 +42,6 @@ export default function PropertyCard({ property }) {
           <Link href={`/items/${property._id}`} className="line-clamp-2 text-base font-bold hover:text-meadow">{property.title}</Link>
           <p className="whitespace-nowrap text-sm font-black text-meadow">₹{Number(property.rent).toLocaleString()}</p>
         </div>
-<<<<<<< Updated upstream
-        <p className="mt-2 flex items-center gap-1 text-sm text-stone-500 dark:text-stone-400"><MapPin className="h-4 w-4" /> Pincode {property.pincode}</p>
-        {property.availabilityMessage && (
-          <p className={`mt-2 flex items-center gap-1 text-sm font-bold ${badge === "Available" || badge === "Low stock" ? "text-green-700 dark:text-green-300" : "text-amber-700 dark:text-amber-300"}`}>
-            <CalendarClock className="h-4 w-4" /> {property.availabilityMessage}
-          </p>
-        )}
-        {property.offer && <p className="mt-2 flex items-center gap-1 text-sm font-bold text-meadow"><Percent className="h-4 w-4" /> {property.offer}</p>}
-=======
->>>>>>> Stashed changes
         <div className="mt-4 grid gap-2 text-xs text-stone-600 dark:text-stone-300">
           <span className="flex items-center gap-1"><CalendarClock className="h-4 w-4" /> {minRentalDaysOf(property)}+ days</span>
         </div>

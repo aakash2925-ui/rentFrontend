@@ -386,7 +386,7 @@ export default function CartPage() {
         key: data.key,
         amount: data.order.amount,
         currency: data.order.currency,
-        name: "Zasoota Rentals",
+        name: "Zasoota",
         description: item.title,
         order_id: data.order.id,
         prefill: { name: addressForm.fullName || user?.name, email: user?.email, contact: addressForm.mobileNumber },

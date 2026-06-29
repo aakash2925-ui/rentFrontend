@@ -68,6 +68,21 @@ const filterBooking = (booking, filter) => {
   return true;
 };
 
+const KYC_MAX_FILE_SIZE = 5 * 1024 * 1024;
+const KYC_ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
+const kycDocumentLabels = {
+  aadhaar: "Aadhaar Card",
+  pan: "PAN Card",
+  passport: "Passport"
+};
+
+const validateKycUploadFile = (file) => {
+  if (!file) return "Select a clear JPG, PNG, or PDF file";
+  if (!KYC_ALLOWED_TYPES.includes(file.type)) return "Only JPG, PNG, and PDF files are supported";
+  if (file.size > KYC_MAX_FILE_SIZE) return "File size must be 5 MB or less";
+  return "";
+};
+
 export default function UserDashboardPage() {
   const { user, logout } = useAuth();
   const router = useRouter();
@@ -394,18 +409,39 @@ function ProfilePanel({ user }) {
   const streamRef = useRef(null);
   const [kycForm, setKycForm] = useState({
     legalName: user?.kyc?.legalName || user?.name || "",
-    documentType: user?.kyc?.documentType || "aadhaar",
-    documentNumber: user?.kyc?.documentNumber || ""
+    documentType: ["aadhaar", "pan", "passport"].includes(user?.kyc?.documentType) ? user.kyc.documentType : "aadhaar"
   });
   const [kycOtp, setKycOtp] = useState("");
   const [cameraActive, setCameraActive] = useState(false);
   const [capturePreview, setCapturePreview] = useState("");
   const [captureFile, setCaptureFile] = useState(null);
+  const [documentFiles, setDocumentFiles] = useState({ documentFront: null, documentBack: null });
+  const [documentPreviews, setDocumentPreviews] = useState({ documentFront: "", documentBack: "" });
+  const [documentErrors, setDocumentErrors] = useState({});
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [savingKyc, setSavingKyc] = useState(false);
   const [verifyingKyc, setVerifyingKyc] = useState(false);
   const kycStatus = user?.kyc?.status || "not_submitted";
   const kycApproved = kycStatus === "approved";
   const kycPhotoSubmitted = Boolean(user?.kyc?.hasSelfieWithIdImage);
+  const documentRequirements = useMemo(() => (
+    kycForm.documentType === "aadhaar"
+      ? [
+          { field: "documentFront", label: "Aadhaar front", help: "Upload the front side with your photo and Aadhaar details." },
+          { field: "documentBack", label: "Aadhaar back", help: "Upload the back side with address details." }
+        ]
+      : [
+          {
+            field: "documentFront",
+            label: kycForm.documentType === "passport" ? "Passport photo page" : "PAN front",
+            help: kycForm.documentType === "passport" ? "Upload the personal information/photo page." : "Upload the front side of your PAN card."
+          }
+        ]
+  ), [kycForm.documentType]);
+  const requiredDocumentFields = documentRequirements.map((item) => item.field);
+  const hasSubmittedDocument = (field) => Boolean(user?.kyc?.[field === "documentFront" ? "hasDocumentFrontImage" : "hasDocumentBackImage"]);
+  const requiredDocumentsReady = requiredDocumentFields.every((field) => Boolean(documentFiles[field]) || hasSubmittedDocument(field));
+  const canSubmitKyc = !kycApproved && !savingKyc && kycForm.legalName.trim() && requiredDocumentsReady && (captureFile || kycPhotoSubmitted);
 
   const stopCamera = (updateState = true) => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -447,6 +483,13 @@ function ProfilePanel({ user }) {
   useEffect(() => () => stopCamera(false), []);
 
   useEffect(() => {
+    if (kycForm.documentType === "aadhaar") return;
+    setDocumentFiles((current) => ({ ...current, documentBack: null }));
+    setDocumentPreviews((current) => ({ ...current, documentBack: "" }));
+    setDocumentErrors((current) => ({ ...current, documentBack: "" }));
+  }, [kycForm.documentType]);
+
+  useEffect(() => {
     if (!cameraActive || !videoRef.current || !streamRef.current) return;
     videoRef.current.srcObject = streamRef.current;
     videoRef.current.play().catch(() => {});
@@ -454,26 +497,53 @@ function ProfilePanel({ user }) {
 
   const submitKyc = async (event) => {
     event.preventDefault();
+    const nextErrors = {};
+    documentRequirements.forEach(({ field, label }) => {
+      if (!documentFiles[field] && !hasSubmittedDocument(field)) nextErrors[field] = `${label} is required`;
+    });
+    setDocumentErrors(nextErrors);
+    if (Object.keys(nextErrors).length) {
+      showToast("Upload all required KYC document images", "error");
+      return;
+    }
     if (!captureFile && !kycPhotoSubmitted) {
       showToast("Capture a live photo holding your identity card", "error");
       return;
     }
+    if (!kycForm.legalName.trim()) {
+      showToast("Enter your legal name", "error");
+      return;
+    }
     setSavingKyc(true);
+    setUploadProgress(0);
     try {
       const formData = new FormData();
       formData.append("legalName", kycForm.legalName);
       formData.append("documentType", kycForm.documentType);
-      formData.append("documentNumber", kycForm.documentNumber);
+      if (documentFiles.documentFront) formData.append("documentFront", documentFiles.documentFront);
+      if (documentFiles.documentBack) formData.append("documentBack", documentFiles.documentBack);
       if (captureFile) formData.append("selfieWithId", captureFile);
-      const { data } = await api.post("/auth/kyc", formData);
+      const { data } = await api.post("/auth/kyc", formData, {
+        onUploadProgress: (progressEvent) => {
+          if (!progressEvent.total) return;
+          setUploadProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total));
+        }
+      });
       updateUser(data.user);
       setCapturePreview("");
       setCaptureFile(null);
+      Object.values(documentPreviews).forEach((preview) => {
+        if (preview) URL.revokeObjectURL(preview);
+      });
+      setDocumentFiles({ documentFront: null, documentBack: null });
+      setDocumentPreviews({ documentFront: "", documentBack: "" });
+      setDocumentErrors({});
       showToast(data.message || "KYC OTP sent to your email");
     } catch (err) {
       showToast(err.response?.data?.message || "Unable to submit KYC", "error");
     } finally {
       setSavingKyc(false);
+      setUploadProgress(0);
     }
   };
 
@@ -489,6 +559,27 @@ function ProfilePanel({ user }) {
     } finally {
       setVerifyingKyc(false);
     }
+  };
+
+  const handleDocumentFile = (field, file) => {
+    const error = validateKycUploadFile(file);
+    if (documentPreviews[field]) URL.revokeObjectURL(documentPreviews[field]);
+    if (error) {
+      setDocumentFiles((current) => ({ ...current, [field]: null }));
+      setDocumentPreviews((current) => ({ ...current, [field]: "" }));
+      setDocumentErrors((current) => ({ ...current, [field]: error }));
+      return;
+    }
+    setDocumentFiles((current) => ({ ...current, [field]: file }));
+    setDocumentPreviews((current) => ({ ...current, [field]: file.type.startsWith("image/") ? URL.createObjectURL(file) : "" }));
+    setDocumentErrors((current) => ({ ...current, [field]: "" }));
+  };
+
+  const removeDocumentFile = (field) => {
+    if (documentPreviews[field]) URL.revokeObjectURL(documentPreviews[field]);
+    setDocumentFiles((current) => ({ ...current, [field]: null }));
+    setDocumentPreviews((current) => ({ ...current, [field]: "" }));
+    setDocumentErrors((current) => ({ ...current, [field]: "" }));
   };
 
   return (
@@ -512,25 +603,93 @@ function ProfilePanel({ user }) {
           </span>
         </div>
         {user?.kyc?.rejectionReason && <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700">{user.kyc.rejectionReason}</p>}
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
           <label className="space-y-2">
-            <span className="text-sm font-black">Legal name</span>
-            <input className="field disabled:cursor-not-allowed disabled:opacity-70" disabled={kycApproved} value={kycForm.legalName} onChange={(event) => setKycForm((current) => ({ ...current, legalName: event.target.value }))} />
+            <span className="text-sm font-black">Legal name <span className="text-red-500">*</span></span>
+            <input className="field disabled:cursor-not-allowed disabled:opacity-70" disabled={kycApproved} placeholder="Name exactly as shown on document" value={kycForm.legalName} onChange={(event) => setKycForm((current) => ({ ...current, legalName: event.target.value }))} />
           </label>
           <label className="space-y-2">
-            <span className="text-sm font-black">Document type</span>
+            <span className="text-sm font-black">Document type <span className="text-red-500">*</span></span>
             <select className="field disabled:cursor-not-allowed disabled:opacity-70" disabled={kycApproved} value={kycForm.documentType} onChange={(event) => setKycForm((current) => ({ ...current, documentType: event.target.value }))}>
               <option value="aadhaar">Aadhaar</option>
               <option value="pan">PAN</option>
               <option value="passport">Passport</option>
-              <option value="driving_license">Driving license</option>
-              <option value="voter_id">Voter ID</option>
             </select>
           </label>
-          <label className="space-y-2">
-            <span className="text-sm font-black">Document number</span>
-            <input className="field uppercase disabled:cursor-not-allowed disabled:opacity-70" disabled={kycApproved} value={kycForm.documentNumber} onChange={(event) => setKycForm((current) => ({ ...current, documentNumber: event.target.value.toUpperCase() }))} />
-          </label>
+        </div>
+        <div className="mt-4 rounded-2xl border border-violet-100 bg-white/80 p-4 dark:border-violet-900/70 dark:bg-stone-950/40">
+          <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
+            <div>
+              <h4 className="font-black text-ink dark:text-white">Upload {kycDocumentLabels[kycForm.documentType] || "identity document"}</h4>
+              <p className="mt-1 text-sm text-violet-950/60 dark:text-violet-100/65">
+                Upload clear, uncropped JPG, PNG, or PDF files up to 5 MB. Text and photo should be readable; blurry uploads may be rejected during review.
+              </p>
+            </div>
+            <span className="w-fit rounded-full bg-violet-50 px-3 py-1 text-xs font-black text-violet-700 dark:bg-violet-950/70 dark:text-violet-100">
+              {documentRequirements.length} required
+            </span>
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            {documentRequirements.map(({ field, label, help }) => {
+              const file = documentFiles[field];
+              const preview = documentPreviews[field];
+              const submitted = hasSubmittedDocument(field);
+              return (
+                <div key={field} className="rounded-2xl border border-violet-100 bg-violet-50/60 p-4 dark:border-violet-900/70 dark:bg-white/5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h5 className="font-black text-ink dark:text-white">{label} <span className="text-red-500">*</span></h5>
+                      <p className="mt-1 text-xs font-semibold text-violet-950/55 dark:text-violet-100/60">{help}</p>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-black ${file || submitted ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>
+                      {file ? "Ready" : submitted ? "Uploaded" : "Required"}
+                    </span>
+                  </div>
+                  <div className="mt-3 overflow-hidden rounded-xl border border-white/80 bg-white dark:border-violet-900/60 dark:bg-stone-950/60">
+                    {preview ? (
+                      <img src={preview} alt={`${label} preview`} className="h-36 w-full object-cover" />
+                    ) : file ? (
+                      <div className="flex h-36 flex-col items-center justify-center gap-2 px-4 text-center text-sm font-bold text-violet-700 dark:text-violet-100">
+                        <Upload className="h-7 w-7" />
+                        <span className="max-w-full break-words">{file.name}</span>
+                      </div>
+                    ) : submitted ? (
+                      <div className="flex h-36 flex-col items-center justify-center gap-2 bg-green-50 px-4 text-center text-sm font-bold text-green-700 dark:bg-green-950/30 dark:text-green-200">
+                        <ShieldCheck className="h-7 w-7" />
+                        <span>Already submitted for admin review</span>
+                      </div>
+                    ) : (
+                      <div className="flex h-36 flex-col items-center justify-center gap-2 px-4 text-center text-sm font-bold text-violet-700 dark:text-violet-100">
+                        <Upload className="h-7 w-7" />
+                        <span>Choose a clear file</span>
+                      </div>
+                    )}
+                  </div>
+                  {documentErrors[field] && <p className="mt-2 text-xs font-black text-red-600">{documentErrors[field]}</p>}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <label className={`inline-flex cursor-pointer items-center justify-center rounded-xl bg-violet-700 px-4 py-2 text-xs font-black text-white transition hover:bg-violet-800 ${kycApproved ? "pointer-events-none opacity-50" : ""}`}>
+                      {file || submitted ? "Replace" : "Upload"}
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                        disabled={kycApproved}
+                        onChange={(event) => {
+                          handleDocumentFile(field, event.target.files?.[0]);
+                          event.target.value = "";
+                        }}
+                      />
+                    </label>
+                    {file && (
+                      <button className="rounded-xl border border-red-100 bg-white px-4 py-2 text-xs font-black text-red-600 transition hover:bg-red-50 dark:border-red-900/70 dark:bg-white/10 dark:text-red-300" type="button" onClick={() => removeDocumentFile(field)}>
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
         <div className="mt-4 rounded-2xl border border-violet-100 bg-white/80 p-4 dark:border-violet-900/70 dark:bg-stone-950/40">
           <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
@@ -599,8 +758,13 @@ function ProfilePanel({ user }) {
           </div>
           <canvas ref={canvasRef} className="hidden" />
         </div>
-        <button className="btn-primary mt-4" type="submit" disabled={savingKyc || kycApproved}>
-          {savingKyc ? "Sending OTP..." : kycApproved ? "KYC approved" : kycStatus === "otp_pending" ? "Resend OTP" : "Submit KYC"}
+        {savingKyc && (
+          <div className="mt-4 overflow-hidden rounded-full bg-violet-100 dark:bg-violet-950/60">
+            <div className="h-2 rounded-full bg-gradient-to-r from-violet-700 to-fuchsia-500 transition-all" style={{ width: `${Math.max(uploadProgress, 12)}%` }} />
+          </div>
+        )}
+        <button className="btn-primary mt-4 disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={!canSubmitKyc}>
+          {savingKyc ? `Uploading ${uploadProgress || 0}%` : kycApproved ? "KYC approved" : kycStatus === "otp_pending" ? "Resend OTP" : "Submit KYC"}
         </button>
         {kycStatus === "otp_pending" && (
           <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50/80 p-4 dark:border-amber-900/60 dark:bg-amber-950/20">
