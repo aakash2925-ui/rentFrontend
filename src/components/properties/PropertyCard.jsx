@@ -4,16 +4,13 @@ import Link from "next/link";
 import { CalendarClock, ChevronLeft, ChevronRight, Percent } from "lucide-react";
 import { useState } from "react";
 import { uploadUrl } from "@/lib/api";
-import { minRentalDaysOf, quantityOf } from "@/lib/itemFields";
-import WishlistButton from "./WishlistButton";
+import { minRentalDaysOf } from "@/lib/itemFields";
 import AddToCartButton from "@/components/cart/AddToCartButton";
+import WishlistButton from "./WishlistButton";
 
 export default function PropertyCard({ property }) {
   const [activeImage, setActiveImage] = useState(0);
   const images = property.images?.length ? property.images : [null];
-  const quantity = quantityOf(property);
-  const badge = !property.isAvailable || quantity === 0 ? property.nextAvailableAt ? "Booked" : "Out of stock" : quantity <= 2 ? "Low stock" : "Available";
-  const badgeClass = badge === "Available" ? "bg-green-50 text-green-700" : badge === "Low stock" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700";
 
   const moveImage = (event, direction) => {
     event.preventDefault();
@@ -27,7 +24,6 @@ export default function PropertyCard({ property }) {
         <Link href={`/items/${property._id}`}>
           <img src={uploadUrl(images[activeImage])} alt={property.title} className="h-full w-full object-cover transition group-hover:scale-105" />
         </Link>
-        <span className={`absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-black ${badgeClass}`}>{badge}</span>
         <div className="absolute right-3 top-3">
           <WishlistButton propertyId={property._id} />
         </div>
@@ -56,7 +52,9 @@ export default function PropertyCard({ property }) {
         <div className="mt-4 grid gap-2 text-xs text-stone-600 dark:text-stone-300">
           <span className="flex items-center gap-1"><CalendarClock className="h-4 w-4" /> {minRentalDaysOf(property)}+ days</span>
         </div>
-        <AddToCartButton property={property} compact className="mt-4 w-full" />
+        <div className="mt-4">
+          <AddToCartButton property={property} className="w-full" compact />
+        </div>
       </div>
     </article>
   );

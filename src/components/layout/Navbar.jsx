@@ -26,6 +26,7 @@ export default function Navbar() {
   const blurTimer = useRef(null);
 
   useEffect(() => {
+
     const term = query.trim();
     if (term.length < 3) {
       setSuggestions([]);
@@ -66,7 +67,6 @@ export default function Navbar() {
     setOpen(false);
     setShowSuggestions(false);
   };
-
   const openSuggestion = (item) => {
     setQuery(item.title || "");
     closeMenu();

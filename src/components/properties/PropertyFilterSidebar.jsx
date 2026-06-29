@@ -23,6 +23,19 @@ export default function PropertyFilterSidebar({ filters, setFilters, applyFilter
           <input className="field" type="number" placeholder="Min daily rent" value={filters.minRent || ""} onChange={(e) => update("minRent", e.target.value)} />
           <input className="field" type="number" placeholder="Max daily rent" value={filters.maxRent || ""} onChange={(e) => update("maxRent", e.target.value)} />
         </div>
+        <div className="rounded-2xl border border-violet-100 bg-mist/70 p-3 dark:border-violet-900/70 dark:bg-white/10">
+          <p className="text-xs font-black uppercase tracking-wide text-meadow">Check date availability</p>
+          <div className="mt-3 grid gap-2">
+            <label className="space-y-1">
+              <span className="text-xs font-black text-violet-950 dark:text-white">Start date</span>
+              <input className="field" type="date" value={filters.startDate || ""} onChange={(e) => update("startDate", e.target.value)} />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-black text-violet-950 dark:text-white">End date</span>
+              <input className="field" type="date" min={filters.startDate || ""} value={filters.endDate || ""} onChange={(e) => update("endDate", e.target.value)} />
+            </label>
+          </div>
+        </div>
         <select className="field" value={filters.type || ""} onChange={(e) => update("type", e.target.value)}>
           <option value="">Item type</option>
           {itemTypes.map((type) => <option key={type._id} value={type.name}>{type.name}</option>)}

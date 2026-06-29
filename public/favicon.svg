@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Zasoota">
+  <rect width="512" height="512" rx="112" fill="#f0e5fa"/>
+  <circle cx="256" cy="256" r="178" fill="#ffffff"/>
+  <path fill="#573875" d="M163 162h188c8 0 15 2 20 7s8 12 8 21c0 8-2 15-7 22L238 350h124c3 6 5 13 5 22 0 9-3 16-8 21s-12 7-22 7H154c-7-7-11-16-11-28 0-8 3-16 9-23l134-137H171c-4-6-6-13-6-23 0-11 3-20 9-27Z"/>
+  <path fill="#9d71c7" d="M133 416h246c10 0 18 8 18 18s-8 18-18 18H133c-10 0-18-8-18-18s8-18 18-18Z"/>
+</svg>

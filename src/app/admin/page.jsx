@@ -1199,11 +1199,23 @@ function UsersPanel({ users, filters, setFilters, updateUserRole, updateUserKycS
                         ) : (
                           <p className="mt-2 text-xs font-semibold text-violet-950/45 dark:text-violet-100/45">No KYC submitted</p>
                         )}
-                        {user.kyc?.selfieWithIdImage && (
-                          <a href={uploadUrl(user.kyc.selfieWithIdImage)} target="_blank" rel="noreferrer" className="mt-2 inline-flex rounded-lg bg-violet-700 px-2.5 py-1.5 text-xs font-black text-white transition hover:bg-violet-800">
-                            View photo
-                          </a>
-                        )}
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {user.kyc?.documentFrontImage && (
+                            <a href={uploadUrl(user.kyc.documentFrontImage)} target="_blank" rel="noreferrer" className="inline-flex rounded-lg bg-violet-700 px-2.5 py-1.5 text-xs font-black text-white transition hover:bg-violet-800">
+                              Front
+                            </a>
+                          )}
+                          {user.kyc?.documentBackImage && (
+                            <a href={uploadUrl(user.kyc.documentBackImage)} target="_blank" rel="noreferrer" className="inline-flex rounded-lg bg-violet-700 px-2.5 py-1.5 text-xs font-black text-white transition hover:bg-violet-800">
+                              Back
+                            </a>
+                          )}
+                          {user.kyc?.selfieWithIdImage && (
+                            <a href={uploadUrl(user.kyc.selfieWithIdImage)} target="_blank" rel="noreferrer" className="inline-flex rounded-lg bg-violet-700 px-2.5 py-1.5 text-xs font-black text-white transition hover:bg-violet-800">
+                              Live photo
+                            </a>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="px-5 py-4">
