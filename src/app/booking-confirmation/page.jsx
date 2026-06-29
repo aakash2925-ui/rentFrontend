@@ -4,6 +4,7 @@ import Link from "next/link";
 import { CheckCircle2, CreditCard, PackageCheck } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 export default function BookingConfirmationPage() {
   return (
@@ -15,9 +16,11 @@ export default function BookingConfirmationPage() {
 
 function BookingConfirmationContent() {
   const params = useSearchParams();
+  const { user } = useAuth();
   const bookingId = params.get("booking");
   const method = params.get("method");
   const isOnline = method === "razorpay";
+  const kycApproved = user?.kyc?.status === "approved";
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-14">
@@ -42,6 +45,7 @@ function BookingConfirmationContent() {
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
+            {kycApproved && <Link href="/dashboard?section=bookings" className="btn-primary flex-1">Go to My Orders</Link>}
             <Link href="/dashboard" className="btn-primary flex-1">View dashboard</Link>
             <Link href="/items" className="btn-secondary flex-1">Browse more items</Link>
           </div>

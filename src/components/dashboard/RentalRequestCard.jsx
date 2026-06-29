@@ -5,7 +5,7 @@ import { CalendarDays, IndianRupee, MapPin, PackageCheck, Phone, Truck, UserRoun
 import { quantityOf } from "@/lib/itemFields";
 import { statusDescriptions, statusLabel, statusOptions, statusTone } from "@/lib/rentalStatus";
 
-const formatDate = (date) => date ? new Date(date).toLocaleDateString() : "-";
+const formatDate = (date) => date ? new Date(date).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }) : "-";
 
 export default function RentalRequestCard({ request, onStatusChange, showUser = false, showAvailable = false }) {
   const item = request.property;

@@ -8,13 +8,16 @@ import {
   Bookmark,
   Camera,
   CalendarDays,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Clock3,
   CreditCard,
   Edit3,
   Headphones,
   Heart,
   Home,
+  IndianRupee,
   LayoutDashboard,
   MapPin,
   Menu,
@@ -23,7 +26,9 @@ import {
   ShieldCheck,
   Save,
   Trash2,
+  Truck,
   Upload,
+  X,
   UserRound
 } from "lucide-react";
 import api, { uploadUrl } from "@/lib/api";
@@ -34,8 +39,6 @@ import EmptyState from "@/components/common/EmptyState";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
-import RentalRequestCard from "@/components/dashboard/RentalRequestCard";
-import PropertyCard from "@/components/properties/PropertyCard";
 import { useToast } from "@/context/ToastContext";
 import { statusLabel, statusTone } from "@/lib/rentalStatus";
 
@@ -66,6 +69,54 @@ const filterBooking = (booking, filter) => {
   if (filter === "cancelled") return payment === "cancelled" || payment === "failed";
   if (filter === "active") return ["contacted", "rented"].includes(status) || payment === "paid";
   return true;
+};
+
+const deliverySlotLabels = {
+  early: "Early delivery",
+  afternoon: "Afternoon slot",
+  evening: "Evening slot",
+  standard: "Standard delivery",
+  fast: "Fast delivery"
+};
+
+const deliverySlotWindows = {
+  early: "11AM-1PM",
+  afternoon: "1PM-3PM",
+  evening: "3PM-5PM",
+  standard: "5PM-11PM",
+  fast: "Within 2 hours"
+};
+
+const orderTrackerSteps = [
+  { key: "pending", label: "Placed", text: "Booking request created" },
+  { key: "paid", label: "Payment", text: "Payment/COD selected" },
+  { key: "rented", label: "Confirmed", text: "Admin confirmed order" },
+  { key: "delivery", label: "Delivery", text: "Ready for handover" },
+  { key: "returned", label: "Completed", text: "Rental completed" }
+];
+
+const bookingTrackerIndex = (booking) => {
+  if (booking.paymentStatus === "failed" || booking.paymentStatus === "cancelled" || booking.status === "closed") return -1;
+  if (booking.status === "returned") return 4;
+  if (booking.status === "rented") return 3;
+  if (booking.status === "contacted") return 2;
+  if (booking.paymentStatus === "paid" || booking.paymentMethod === "cod") return 1;
+  return 0;
+};
+
+const KYC_MAX_FILE_SIZE = 5 * 1024 * 1024;
+const KYC_ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
+const kycDocumentLabels = {
+  aadhaar: "Aadhaar Card",
+  pan: "PAN Card",
+  passport: "Passport"
+};
+
+const validateKycUploadFile = (file) => {
+  if (!file) return "Select a clear JPG, PNG, or PDF file";
+  if (!KYC_ALLOWED_TYPES.includes(file.type)) return "Only JPG, PNG, and PDF files are supported";
+  if (file.size > KYC_MAX_FILE_SIZE) return "File size must be 5 MB or less";
+  return "";
 };
 
 export default function UserDashboardPage() {
@@ -150,7 +201,7 @@ export default function UserDashboardPage() {
     pending: bookings.filter((item) => filterBooking(item, "pending")).length
   }), [bookings, wishlist]);
 
-  const panelProps = { user, bookings, inquiries, wishlist, savedAddresses, setSavedAddresses, properties, ownerInquiries, updateStatus, removeWishlist, stats };
+  const panelProps = { user, bookings, inquiries, wishlist, savedAddresses, setSavedAddresses, properties, ownerInquiries, updateStatus, removeWishlist, stats, onNavigate: selectSection };
 
   return (
     <ProtectedRoute>
@@ -211,57 +262,26 @@ function SectionHeader({ title, text, action }) {
   );
 }
 
-function OverviewPanel({ user, bookings, inquiries, wishlist, properties, ownerInquiries, updateStatus, stats }) {
+function OverviewPanel({ wishlist, stats, onNavigate }) {
   return (
     <div className="space-y-6">
-      <SectionHeader title="Dashboard Overview" text="Track bookings, wishlist items, and account activity from one place." />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard icon={Package} label="Bookings" value={stats.bookings} />
-        <MetricCard icon={CalendarDays} label="Active" value={stats.active} />
-        <MetricCard icon={Heart} label="Wishlist" value={stats.wishlist} />
-        <MetricCard icon={Bell} label="Pending" value={stats.pending} />
+        <MetricCard icon={Package} label="Bookings" value={stats.bookings} onClick={() => onNavigate("bookings")} />
+        <MetricCard icon={CalendarDays} label="Active" value={stats.active} onClick={() => onNavigate("bookings")} />
+        <MetricCard icon={Heart} label="Wishlist" value={stats.wishlist} onClick={() => onNavigate("wishlist")} />
+        <MetricCard icon={Bell} label="Pending" value={stats.pending} onClick={() => onNavigate("bookings")} />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-2">
-        <div className="rounded-2xl border border-violet-100 bg-mist/70 p-4 dark:border-violet-900/70 dark:bg-white/10">
-          <h3 className="text-lg font-black">Recent bookings</h3>
-          <div className="mt-4 space-y-3">
-            {bookings.slice(0, 3).map((booking) => <BookingCard key={booking._id} booking={booking} compact />)}
-            {!bookings.length && <EmptyState title="No bookings yet" message="Your rental bookings will appear here." actionHref="/items" actionLabel="Browse items" />}
-          </div>
-        </div>
-        <div className="rounded-2xl border border-violet-100 bg-mist/70 p-4 dark:border-violet-900/70 dark:bg-white/10">
+      <div className="rounded-2xl border border-violet-100 bg-mist/70 p-4 dark:border-violet-900/70 dark:bg-white/10">
+        <div className="flex items-center justify-between gap-3">
           <h3 className="text-lg font-black">Saved wishlist</h3>
-          <div className="mt-4 grid gap-3">
-            {wishlist.slice(0, 3).map((item) => <WishlistMini key={item._id} item={item} />)}
-            {!wishlist.length && <EmptyState title="No saved items" message="Save items to compare and book later." actionHref="/items" actionLabel="Explore rentals" />}
-          </div>
+          <button className="text-sm font-black text-meadow transition hover:text-violet-700" type="button" onClick={() => onNavigate("wishlist")}>View all</button>
+        </div>
+        <div className="mt-4 grid gap-3">
+          {wishlist.slice(0, 3).map((item) => <WishlistMini key={item._id} item={item} />)}
+          {!wishlist.length && <EmptyState title="No saved items" message="Save items to compare and book later." actionHref="/items" actionLabel="Explore rentals" />}
         </div>
       </div>
-
-      {["owner", "admin"].includes(user?.role) && (
-        <div className="space-y-5">
-          <section>
-            <h3 className="mb-4 text-lg font-black">My rental items</h3>
-            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-              {properties.length ? properties.map((property) => <PropertyCard key={property._id} property={property} />) : <EmptyState title="No rental items listed" message="Admin-published inventory appears here." />}
-            </div>
-          </section>
-          <section>
-            <h3 className="mb-4 text-lg font-black">Requests to manage</h3>
-            <div className="grid gap-3">
-              {ownerInquiries.length ? ownerInquiries.map((item) => <RentalRequestCard key={item._id} request={item} showUser showAvailable onStatusChange={updateStatus} />) : <EmptyState title="No requests to manage" message="Requests for listed inventory will appear here." />}
-            </div>
-          </section>
-        </div>
-      )}
-
-      <section>
-        <h3 className="mb-4 text-lg font-black">My booking requests</h3>
-        <div className="grid gap-3">
-          {inquiries.length ? inquiries.slice(0, 3).map((item) => <RentalRequestCard key={item._id} request={item} />) : <EmptyState title="No booking requests" message="Booking requests appear here after you submit an item request." actionHref="/items" actionLabel="Browse items" />}
-        </div>
-      </section>
     </div>
   );
 }
@@ -299,43 +319,129 @@ function BookingsPanel({ bookings }) {
 }
 
 function BookingCard({ booking, compact = false }) {
+  const [trackingOpen, setTrackingOpen] = useState(false);
   const itemHref = booking.property?._id ? `/items/${booking.property._id}` : "";
   const title = booking.property?.title || "Rental item";
+  const deliveryDate = booking.deliveryDate || booking.startDate;
+  const deliveryLabel = deliverySlotLabels[booking.deliverySpeed] || "Delivery";
+  const deliveryWindow = booking.deliveryEta || deliverySlotWindows[booking.deliverySpeed] || "Within 24 hours";
+  const trackerIndex = bookingTrackerIndex(booking);
+  const cancelled = trackerIndex === -1;
 
   return (
-    <article className="min-w-0 overflow-hidden rounded-2xl border border-violet-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft dark:border-violet-900/70 dark:bg-stone-950/70">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-        <div className="min-w-0 flex-1">
-          {itemHref ? (
-            <Link href={itemHref} className="line-clamp-2 max-w-full break-words text-lg font-black leading-snug text-ink transition hover:text-meadow dark:text-white">
-              {title}
-            </Link>
-          ) : (
-            <h3 className="line-clamp-2 max-w-full break-words text-lg font-black leading-snug text-ink dark:text-white">{title}</h3>
-          )}
-          <p className="mt-1 break-words text-sm font-semibold text-violet-950/60 dark:text-violet-100/65">
-            {formatDate(booking.startDate)} - {formatDate(booking.endDate)} · {booking.quantity || 1} item(s)
-          </p>
-          {!compact && <p className="mt-2 line-clamp-3 max-w-full break-words text-sm leading-6 text-violet-950/60 dark:text-violet-100/65">Delivery: {booking.deliveryAddress || "Address shared"}</p>}
-        </div>
-        <div className="flex min-w-0 flex-wrap gap-2 md:max-w-[45%] md:justify-end">
-          <StatusPill label={statusLabel(booking.status)} className={statusTone[booking.status]} />
-          <StatusPill label={`payment ${booking.paymentStatus}`} />
+    <article className="min-w-0 overflow-hidden rounded-[1.35rem] border border-violet-100 bg-white shadow-sm transition hover:shadow-soft dark:border-violet-900/70 dark:bg-stone-950/70">
+      <div className="border-b border-violet-100 bg-gradient-to-r from-violet-50 via-white to-fuchsia-50 p-4 dark:border-violet-900/70 dark:from-violet-950/50 dark:via-stone-950 dark:to-fuchsia-950/30">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+          <div className="min-w-0 flex-1">
+            {itemHref ? (
+              <Link href={itemHref} className="line-clamp-2 max-w-full break-words text-xl font-black leading-snug text-ink transition hover:text-meadow dark:text-white">
+                {title}
+              </Link>
+            ) : (
+              <h3 className="line-clamp-2 max-w-full break-words text-xl font-black leading-snug text-ink dark:text-white">{title}</h3>
+            )}
+            <p className="mt-2 break-words text-sm font-semibold text-violet-950/60 dark:text-violet-100/65">
+              Booking ID #{String(booking._id).slice(-8)} · {booking.quantity || 1} item(s)
+            </p>
+          </div>
+          <div className="flex min-w-0 flex-wrap gap-2 md:max-w-[45%] md:justify-end">
+            <StatusPill label={statusLabel(booking.status)} className={statusTone[booking.status]} />
+            <StatusPill label={`payment ${booking.paymentStatus}`} />
+          </div>
         </div>
       </div>
-      <div className="mt-4 grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <InfoCard label="Amount" value={`₹${Number(booking.finalAmount || booking.totalAmount || 0).toLocaleString()}`} />
-        <InfoCard label="Method" value={booking.paymentMethod === "razorpay" ? "Razorpay" : "Cash on Delivery"} />
-        <InfoCard label="Delivery" value={booking.deliveryEta || (booking.deliverySpeed === "fast" ? "Within 2 hours" : "Within 24 hours")} />
-        <InfoCard label="Booking ID" value={String(booking._id).slice(-8)} />
-      </div>
-      {!compact && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {itemHref && <Link href={itemHref} className="btn-secondary">View item</Link>}
-          <Link href="/contact" className="btn-primary">Get support</Link>
+
+      <div className="p-4">
+        <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <InfoCard icon={IndianRupee} label="Amount" value={`₹${Number(booking.finalAmount || booking.totalAmount || 0).toLocaleString()}`} />
+          <InfoCard icon={CreditCard} label="Payment" value={booking.paymentMethod === "razorpay" ? "Razorpay" : "Cash on Delivery"} />
+          <InfoCard icon={CalendarDays} label="Rental dates" value={`${formatDate(booking.startDate)} - ${formatDate(booking.endDate)}`} />
+          <InfoCard icon={Package} label="Booking ID" value={String(booking._id).slice(-8)} />
         </div>
+
+        <div className="mt-4">
+          <div className="min-w-0 rounded-2xl border border-violet-100 bg-mist/70 p-4 dark:border-violet-900/70 dark:bg-white/10">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-violet-100 text-violet-700 dark:bg-violet-950/70 dark:text-violet-100">
+                <Truck className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">Delivery date & time</p>
+                <p className="mt-1 break-words text-base font-black text-ink dark:text-white">{formatDate(deliveryDate)} · {deliveryWindow}</p>
+                <p className="mt-1 break-words text-sm font-semibold text-violet-950/60 dark:text-violet-100/65">{deliveryLabel}</p>
+                {!compact && <p className="mt-3 break-words text-sm leading-6 text-violet-950/65 dark:text-violet-100/70">{booking.deliveryAddress || "Address shared"}</p>}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {!compact && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" className="btn-primary" onClick={() => setTrackingOpen(true)}>
+              <Clock3 className="h-4 w-4" /> Track order
+            </button>
+            {itemHref && <Link href={itemHref} className="btn-secondary">View item</Link>}
+            <Link href="/contact" className="btn-secondary">Get support</Link>
+          </div>
+        )}
+      </div>
+      {trackingOpen && (
+        <OrderTrackingModal
+          booking={booking}
+          cancelled={cancelled}
+          deliveryDate={deliveryDate}
+          deliveryLabel={deliveryLabel}
+          deliveryWindow={deliveryWindow}
+          onClose={() => setTrackingOpen(false)}
+          trackerIndex={trackerIndex}
+        />
       )}
     </article>
+  );
+}
+
+function OrderTrackingModal({ booking, cancelled, deliveryDate, deliveryLabel, deliveryWindow, onClose, trackerIndex }) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4 py-6 backdrop-blur-sm">
+      <section className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[1.5rem] border border-violet-100 bg-white p-5 shadow-glow dark:border-violet-900/70 dark:bg-stone-950">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-wide text-meadow">Order tracking</p>
+            <h3 className="mt-1 break-words text-2xl font-black text-ink dark:text-white">{booking.property?.title || "Rental item"}</h3>
+            <p className="mt-1 text-sm font-semibold text-violet-950/60 dark:text-violet-100/65">Booking ID #{String(booking._id).slice(-8)}</p>
+          </div>
+          <button type="button" className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-violet-50 text-violet-700 transition hover:bg-violet-100 dark:bg-white/10 dark:text-violet-100" onClick={onClose} aria-label="Close tracking modal">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <InfoCard icon={Truck} label="Delivery" value={`${formatDate(deliveryDate)} · ${deliveryWindow}`} />
+          <InfoCard icon={Package} label="Current status" value={cancelled ? "Stopped" : statusLabel(booking.status)} />
+        </div>
+        <p className="mt-3 break-words rounded-2xl bg-mist/70 px-4 py-3 text-sm font-semibold text-violet-950/65 dark:bg-white/10 dark:text-violet-100/70">
+          {deliveryLabel} · {booking.deliveryAddress || "Address shared"}
+        </p>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-5">
+          {orderTrackerSteps.map((step, index) => {
+            const done = !cancelled && index <= trackerIndex;
+            const current = !cancelled && index === trackerIndex;
+            return (
+              <div key={step.key} className="min-w-0 rounded-2xl border border-violet-100 bg-mist/70 p-3 dark:border-violet-900/70 dark:bg-white/10">
+                <div className={`grid h-10 w-10 place-items-center rounded-full border text-xs font-black ${
+                  done ? "border-meadow bg-meadow text-white" : "border-violet-100 bg-white text-violet-500 dark:border-violet-900/70 dark:bg-stone-950 dark:text-violet-100/60"
+                }`}>
+                  {done ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+                </div>
+                <p className={`mt-3 break-words text-sm font-black ${current ? "text-meadow" : "text-ink dark:text-white"}`}>{step.label}</p>
+                <p className="mt-1 break-words text-xs font-semibold leading-5 text-violet-950/55 dark:text-violet-100/50">{step.text}</p>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -500,6 +606,24 @@ function ProfilePanel({ user }) {
         <InfoCard icon={Bell} label="Email" value={user?.email || "-"} />
         <InfoCard icon={ShieldCheck} label="KYC" value={kycStatus.replace("_", " ")} />
       </div>
+      {kycApproved ? (
+        <div className="mt-5 rounded-2xl border border-green-100 bg-green-50 p-5 text-green-700 shadow-soft dark:border-green-900/70 dark:bg-green-950/30 dark:text-green-200">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-green-600 shadow-sm dark:bg-white/10 dark:text-green-200">
+                <ShieldCheck className="h-6 w-6" />
+              </span>
+              <div>
+                <p className="text-lg font-black text-ink dark:text-white">KYC completed</p>
+                <p className="mt-1 text-sm font-semibold text-green-700/75 dark:text-green-100/75">Your identity verification is approved.</p>
+              </div>
+            </div>
+            <span className="w-fit rounded-full bg-white px-4 py-2 text-xs font-black uppercase tracking-wide text-green-700 shadow-sm dark:bg-white/10 dark:text-green-100">
+              KYC completed
+            </span>
+          </div>
+        </div>
+      ) : (
       <form onSubmit={submitKyc} className="mt-5 rounded-2xl border border-violet-100 bg-mist/70 p-5 dark:border-violet-900/70 dark:bg-white/10">
         <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
           <div>
@@ -615,6 +739,7 @@ function ProfilePanel({ user }) {
           </div>
         )}
       </form>
+      )}
     </div>
   );
 }
@@ -807,9 +932,9 @@ function SupportPanel() {
   );
 }
 
-function MetricCard({ icon: Icon, label, value }) {
-  return (
-    <div className="rounded-2xl border border-violet-100 bg-white p-4 shadow-sm dark:border-violet-900/70 dark:bg-stone-950/70">
+function MetricCard({ icon: Icon, label, value, onClick }) {
+  const content = (
+    <>
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-bold text-violet-950/55 dark:text-violet-100/60">{label}</p>
@@ -819,6 +944,20 @@ function MetricCard({ icon: Icon, label, value }) {
           <Icon className="h-5 w-5" />
         </div>
       </div>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className="rounded-2xl border border-violet-100 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-meadow hover:shadow-soft focus:outline-none focus:ring-2 focus:ring-meadow/40 dark:border-violet-900/70 dark:bg-stone-950/70">
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-violet-100 bg-white p-4 shadow-sm dark:border-violet-900/70 dark:bg-stone-950/70">
+      {content}
     </div>
   );
 }
@@ -843,5 +982,5 @@ function StatusPill({ label, className = "bg-violet-50 text-violet-700 dark:bg-v
 
 function formatDate(value) {
   if (!value) return "-";
-  return new Date(value).toLocaleDateString();
+  return new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
 }

@@ -56,7 +56,9 @@ export default function PropertyCard({ property }) {
         <div className="mt-4 grid gap-2 text-xs text-stone-600 dark:text-stone-300">
           <span className="flex items-center gap-1"><CalendarClock className="h-4 w-4" /> {minRentalDaysOf(property)}+ days</span>
         </div>
-        <AddToCartButton property={property} compact className="mt-4 w-full" />
+        <div className="mt-4">
+          <AddToCartButton property={property} className="w-full" compact showGoToCart={false} />
+        </div>
       </div>
     </article>
   );

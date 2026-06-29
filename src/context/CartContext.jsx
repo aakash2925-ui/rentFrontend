@@ -8,6 +8,7 @@ const CartContext = createContext(null);
 const LEGACY_CART_KEY = "zasoota_cart";
 
 const cartSnapshot = (property) => ({
+const cartSnapshot = (property, rentalPlan = {}) => ({
   _id: property._id,
   title: property.title,
   rent: Number(property.rent || 0),
@@ -18,7 +19,11 @@ const cartSnapshot = (property) => ({
   quantityAvailable: quantityOf(property),
   minRentalDays: minRentalDaysOf(property),
   offer: property.offer || "",
-  isAvailable: property.isAvailable !== false
+  isAvailable: property.isAvailable !== false,
+  bookedPeriods: property.bookedPeriods || [],
+  startDate: rentalPlan.startDate || property.startDate || "",
+  endDate: rentalPlan.endDate || property.endDate || "",
+  deliveryPincode: rentalPlan.pincode || property.deliveryPincode || ""
 });
 
 export function CartProvider({ children }) {
@@ -45,13 +50,17 @@ export function CartProvider({ children }) {
     localStorage.setItem(cartKey, JSON.stringify(items));
   }, [cartKey, items, loading]);
 
-  const addItem = (property) => {
-    const snapshot = cartSnapshot(property);
+  const addItem = (property, rentalPlan = {}) => {
+    const snapshot = cartSnapshot(property, rentalPlan);
     setItems((current) => {
       const existing = current.find((item) => item._id === snapshot._id);
       if (existing) return current.map((item) => (item._id === snapshot._id ? { ...item, ...snapshot, cartQuantity: 1 } : item));
       return [...current, { ...snapshot, cartQuantity: 1 }];
     });
+  };
+
+  const updateItem = (id, updates) => {
+    setItems((current) => current.map((item) => (item._id === id ? { ...item, ...updates } : item)));
   };
 
   const removeItem = (id) => {
@@ -70,6 +79,7 @@ export function CartProvider({ children }) {
     totalDailyRent,
     totalDeposit,
     addItem,
+    updateItem,
     removeItem,
     clearCart
   }), [items, count, totalDailyRent, totalDeposit]);
