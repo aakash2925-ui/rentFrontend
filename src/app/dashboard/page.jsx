@@ -5,7 +5,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bell,
-  Bookmark,
   Camera,
   CalendarDays,
   ChevronLeft,
@@ -19,6 +18,7 @@ import {
   MapPin,
   Menu,
   Package,
+  Plus,
   Search,
   ShieldCheck,
   Save,
@@ -496,7 +496,6 @@ function ProfilePanel({ user }) {
       <SectionHeader title="Profile" text="Your account details used for bookings and support." />
       <div className="grid gap-4 lg:grid-cols-2">
         <InfoCard icon={UserRound} label="Name" value={user?.name || "-"} />
-        <InfoCard icon={Bookmark} label="Role" value={user?.role || "user"} />
         <InfoCard icon={Bell} label="Email" value={user?.email || "-"} />
         <InfoCard icon={ShieldCheck} label="KYC" value={kycStatus.replace("_", " ")} />
       </div>
@@ -504,7 +503,7 @@ function ProfilePanel({ user }) {
         <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
           <div>
             <h3 className="text-lg font-black text-ink dark:text-white">KYC Verification</h3>
-            <p className="mt-1 text-sm text-violet-950/60 dark:text-violet-100/65">Submit identity details and verify the OTP sent to your registered email before bookings.</p>
+            <p className="mt-1 text-sm text-violet-950/60 dark:text-violet-100/65">After your booking is confirmed, submit identity details and verify the OTP sent to your registered email.</p>
           </div>
           <span className={`w-fit rounded-full px-3 py-1 text-xs font-black ${
             kycStatus === "approved" ? "bg-green-50 text-green-700" : kycStatus === "rejected" ? "bg-red-50 text-red-700" : ["pending", "otp_pending"].includes(kycStatus) ? "bg-amber-50 text-amber-700" : "bg-violet-50 text-violet-700"
@@ -625,6 +624,22 @@ function AddressesPanel({ user, addresses = [], setAddresses }) {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
 
+  const blankAddress = () => ({
+    fullName: user?.name || "",
+    mobileNumber: user?.phone || "",
+    houseFlatNo: "",
+    streetArea: "",
+    landmark: "",
+    city: "",
+    state: "",
+    pincode: ""
+  });
+
+  const startAdd = () => {
+    setEditingId("new");
+    setForm(blankAddress());
+  };
+
   const startEdit = (address) => {
     setEditingId(address._id);
     setForm({
@@ -640,6 +655,21 @@ function AddressesPanel({ user, addresses = [], setAddresses }) {
   };
 
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+
+  const saveNew = async () => {
+    setSaving(true);
+    try {
+      const { data } = await api.post("/auth/addresses", form);
+      setAddresses(data.addresses || []);
+      setEditingId("");
+      setForm({});
+      showToast("Address added");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to add address", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const saveEdit = async (id) => {
     setSaving(true);
@@ -669,7 +699,47 @@ function AddressesPanel({ user, addresses = [], setAddresses }) {
 
   return (
     <div>
-      <SectionHeader title="Saved Addresses" text="Addresses saved during checkout appear here for faster future bookings." action={<Link href="/items" className="btn-secondary">Book an item</Link>} />
+      <SectionHeader
+        title="Saved Addresses"
+        text="Addresses saved during checkout appear here for faster future bookings."
+        action={(
+          <div className="flex flex-wrap gap-2">
+            <button className="btn-primary" type="button" onClick={startAdd}>
+              <Plus className="h-4 w-4" /> Add address
+            </button>
+            <Link href="/items" className="btn-secondary">Book an item</Link>
+          </div>
+        )}
+      />
+      {editingId === "new" && (
+        <div className="mb-5 rounded-2xl border border-violet-100 bg-mist/70 p-5 shadow-sm dark:border-violet-900/70 dark:bg-white/10">
+          <div className="mb-4 flex items-start gap-3">
+            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-violet-100 text-violet-700 dark:bg-violet-950/70 dark:text-violet-100">
+              <Plus className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="font-black text-ink dark:text-white">Add new address</h3>
+              <p className="mt-1 text-sm text-violet-950/60 dark:text-violet-100/65">Save this address to use it quickly during checkout.</p>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <input className="field" placeholder="Full name" value={form.fullName || ""} onChange={(event) => update("fullName", event.target.value)} />
+            <input className="field" placeholder="Mobile number" value={form.mobileNumber || ""} onChange={(event) => update("mobileNumber", event.target.value)} />
+            <input className="field" placeholder="House/Flat No." value={form.houseFlatNo || ""} onChange={(event) => update("houseFlatNo", event.target.value)} />
+            <input className="field" placeholder="Street/Area" value={form.streetArea || ""} onChange={(event) => update("streetArea", event.target.value)} />
+            <input className="field" placeholder="Landmark optional" value={form.landmark || ""} onChange={(event) => update("landmark", event.target.value)} />
+            <input className="field" placeholder="City" value={form.city || ""} onChange={(event) => update("city", event.target.value)} />
+            <input className="field" placeholder="State" value={form.state || ""} onChange={(event) => update("state", event.target.value)} />
+            <input className="field" inputMode="numeric" maxLength={6} placeholder="PIN Code" value={form.pincode || ""} onChange={(event) => update("pincode", event.target.value.replace(/\D/g, "").slice(0, 6))} />
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button className="btn-primary" type="button" disabled={saving} onClick={saveNew}>
+              <Save className="h-4 w-4" /> {saving ? "Saving..." : "Save address"}
+            </button>
+            <button className="btn-secondary" type="button" onClick={() => { setEditingId(""); setForm({}); }}>Cancel</button>
+          </div>
+        </div>
+      )}
       {addresses.length ? (
         <div className="grid gap-4 lg:grid-cols-2">
           {addresses.map((address) => (

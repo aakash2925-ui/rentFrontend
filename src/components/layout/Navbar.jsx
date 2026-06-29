@@ -28,6 +28,61 @@ export default function Navbar() {
     setOpen(false);
   };
 
+<<<<<<< Updated upstream
+=======
+  const focusSearch = () => {
+    if (blurTimer.current) clearTimeout(blurTimer.current);
+    setShowSuggestions(true);
+  };
+
+  const blurSearch = () => {
+    blurTimer.current = setTimeout(() => setShowSuggestions(false), 150);
+  };
+
+  const closeMenu = () => {
+    setOpen(false);
+    setShowSuggestions(false);
+  };
+
+  const openSuggestion = (item) => {
+    setQuery(item.title || "");
+    closeMenu();
+    router.push(`/items/${item._id}`);
+  };
+
+  const suggestionBox = (
+    showSuggestions && query.trim().length >= 3 && (
+      <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-2xl border border-violet-100 bg-white text-violet-950 shadow-glow dark:border-violet-900/70 dark:bg-stone-950 dark:text-white">
+        {suggestionLoading ? (
+          <p className="px-4 py-3 text-sm font-semibold text-violet-950/60 dark:text-violet-100/60">Searching...</p>
+        ) : suggestions.length ? (
+          <div className="max-h-80 overflow-y-auto py-2">
+            {suggestions.map((item) => (
+              <button
+                key={item._id}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => openSuggestion(item)}
+                className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left transition hover:bg-violet-50 dark:hover:bg-white/10"
+              >
+                <span className="min-w-0">
+                  <span className="line-clamp-1 text-sm font-black">{item.title}</span>
+                  <span className="mt-1 block text-xs font-semibold text-violet-950/55 dark:text-violet-100/55">{item.itemType || item.propertyType || "Rental item"}</span>
+                </span>
+                <span className="shrink-0 rounded-full bg-violet-50 px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-wide text-meadow dark:bg-white/10">
+                  Item
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="px-4 py-3 text-sm font-semibold text-violet-950/60 dark:text-violet-100/60">No matching items found</p>
+        )}
+      </div>
+    )
+  );
+
+>>>>>>> Stashed changes
   return (
     <header className="sticky top-0 z-40 border-b border-violet-100 bg-white/85 shadow-sm backdrop-blur-xl dark:border-violet-900/70 dark:bg-[#11071f]/88">
       <nav className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">

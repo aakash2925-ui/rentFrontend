@@ -5,12 +5,12 @@ import Link from "next/link";
 import api from "@/lib/api";
 import Loading from "@/components/common/Loading";
 import ErrorMessage from "@/components/common/ErrorMessage";
-import InquiryForm from "@/components/forms/InquiryForm";
 import PropertyDetails from "@/components/properties/PropertyDetails";
 import PropertyImageGallery from "@/components/properties/PropertyImageGallery";
 import PropertyGrid from "@/components/properties/PropertyGrid";
 import ReviewSection from "@/components/properties/ReviewSection";
 import RentPriceSection from "@/components/properties/RentPriceSection";
+import RentalOptionsCard from "@/components/properties/RentalOptionsCard";
 import { itemTypeOf } from "@/lib/itemFields";
 
 export default function PropertyDetailPage({ params }) {
@@ -72,7 +72,9 @@ export default function PropertyDetailPage({ params }) {
         </div>
         <aside id="rental-checkout" className="scroll-mt-24 lg:sticky lg:top-24 lg:self-start">
           <RentPriceSection property={property} />
-          <InquiryForm property={property} />
+          <div className="mt-5">
+            <RentalOptionsCard property={property} />
+          </div>
         </aside>
       </div>
       {related.length > 0 && (
