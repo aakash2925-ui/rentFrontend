@@ -7,7 +7,6 @@ import { useAuth } from "@/context/AuthContext";
 const CartContext = createContext(null);
 const LEGACY_CART_KEY = "zasoota_cart";
 
-const cartSnapshot = (property) => ({
 const cartSnapshot = (property, rentalPlan = {}) => ({
   _id: property._id,
   title: property.title,
@@ -20,7 +19,6 @@ const cartSnapshot = (property, rentalPlan = {}) => ({
   minRentalDays: minRentalDaysOf(property),
   offer: property.offer || "",
   isAvailable: property.isAvailable !== false,
-  bookedPeriods: property.bookedPeriods || [],
   startDate: rentalPlan.startDate || property.startDate || "",
   endDate: rentalPlan.endDate || property.endDate || "",
   deliveryPincode: rentalPlan.pincode || property.deliveryPincode || ""

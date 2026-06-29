@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CheckCircle2, CreditCard, PackageCheck } from "lucide-react";
+import { CheckCircle2, CreditCard, PackageCheck, ShieldCheck } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -20,7 +20,7 @@ function BookingConfirmationContent() {
   const bookingId = params.get("booking");
   const method = params.get("method");
   const isOnline = method === "razorpay";
-  const kycApproved = user?.kyc?.status === "approved";
+  const needsKyc = user && user.kyc?.status !== "approved";
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-14">
@@ -44,6 +44,20 @@ function BookingConfirmationContent() {
               {isOnline ? "Payment status is marked paid." : "Payment status is pending until delivery collection."}
             </p>
           </div>
+          {needsKyc && (
+            <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4 text-sm dark:border-amber-900/60 dark:bg-amber-950/30">
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-200" />
+                <div>
+                  <h2 className="font-black text-amber-800 dark:text-amber-100">Complete KYC after booking</h2>
+                  <p className="mt-1 leading-6 text-amber-800/75 dark:text-amber-100/75">
+                    Your booking is confirmed. Please complete OTP-based KYC from your dashboard profile so the team can verify your identity before handover.
+                  </p>
+                  <Link href="/dashboard?section=profile" className="btn-primary mt-3">Complete KYC</Link>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="flex flex-col gap-3 sm:flex-row">
             {kycApproved && <Link href="/dashboard?section=bookings" className="btn-primary flex-1">Go to My Orders</Link>}
             <Link href="/dashboard" className="btn-primary flex-1">View dashboard</Link>

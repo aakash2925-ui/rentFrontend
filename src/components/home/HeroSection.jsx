@@ -17,7 +17,7 @@ export default function HeroSection() {
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 md:grid-cols-[1.02fr_0.98fr] md:py-14">
         <div className="animate-rise flex flex-col justify-center">
           <p className="inline-flex w-fit items-center gap-2 rounded-full border border-violet-200 bg-white/75 px-3 py-1 text-xs font-black uppercase tracking-wide text-meadow shadow-sm backdrop-blur dark:border-violet-800 dark:bg-white/10 dark:text-violet-100">
-            <Sparkles className="h-4 w-4" /> Zasoota rentals
+            <Sparkles className="h-4 w-4" /> Zasoota
           </p>
           <h1 className="mt-5 max-w-3xl text-5xl font-black leading-[1.02] text-ink dark:text-stone-50 md:text-7xl">
             Access Over Ownership

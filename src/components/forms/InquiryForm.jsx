@@ -183,7 +183,6 @@ export default function InquiryForm({ property }) {
 
   const validateStep = useCallback((targetStep = step) => {
     if (!user) return "Please login before booking this item.";
-    if (user.kyc?.status !== "approved") return "Please complete OTP-based KYC verification from your dashboard profile before booking.";
     if (!form.startDate) return "Start date is required.";
     if (!form.endDate) return "End date is required.";
     if (form.startDate < today) return "Start date cannot be before today.";
@@ -396,7 +395,7 @@ export default function InquiryForm({ property }) {
         key: data.key,
         amount: data.order.amount,
         currency: data.order.currency,
-        name: "Zasoota Rentals",
+        name: "Zasoota",
         description: property.title,
         order_id: data.order.id,
         prefill: { name: form.fullName || user?.name, email: user?.email, contact: form.mobileNumber },

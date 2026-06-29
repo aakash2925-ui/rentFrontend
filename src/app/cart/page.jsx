@@ -492,7 +492,7 @@ export default function CartPage() {
           <ShoppingCart className="h-8 w-8" />
         </div>
         <h1 className="mt-5 text-3xl font-black text-ink dark:text-white">Your cart is empty</h1>
-        <p className="mt-2 text-violet-950/65 dark:text-violet-100/70">Add projectors, speakers, cameras, luggage, or fashion items to plan your rental.</p>
+        <p className="mt-2 text-violet-950/65 dark:text-violet-100/70">Add rental items with dates and delivery pincode to start checkout.</p>
         <Link href="/items" className="btn-primary mt-6">Browse items</Link>
       </div>
     );
@@ -500,16 +500,33 @@ export default function CartPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10">
-      <div className="mb-7 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-bold uppercase tracking-wide text-meadow">Rental cart</p>
-          <h1 className="mt-2 text-4xl font-black text-ink dark:text-white">Review your items</h1>
-          <p className="mt-2 text-sm text-violet-950/65 dark:text-violet-100/70">{count} item(s) selected for rental.</p>
-        </div>
-        <button type="button" onClick={clearCart} className="btn-secondary">
-          <Trash2 className="h-4 w-4" /> Clear cart
-        </button>
+      <div className="mb-7">
+        <p className="text-sm font-bold uppercase tracking-wide text-meadow">Rental checkout</p>
+        <h1 className="mt-2 text-4xl font-black text-ink dark:text-white">Cart checkout</h1>
       </div>
+      <div className="mb-6 overflow-x-auto pb-1">
+        <div className="flex min-w-max items-center gap-2 rounded-[1.35rem] border border-violet-100 bg-white/90 p-2 shadow-soft dark:border-violet-900/70 dark:bg-white/10">
+          {steps.map((label, index) => (
+            <button
+              key={label}
+              ref={(node) => { stepRefs.current[index] = node; }}
+              type="button"
+              disabled={index > maxStep}
+              onClick={() => index <= maxStep && setStep(index)}
+              className={`flex min-w-28 items-center gap-2 rounded-2xl px-3 py-2.5 text-left text-sm font-black transition ${
+                step === index ? "bg-violet-700 text-white shadow-soft" : index <= maxStep ? "bg-violet-50 text-violet-800 hover:bg-violet-100 dark:bg-white/10 dark:text-violet-100" : "cursor-not-allowed bg-stone-100 text-stone-400 dark:bg-white/5 dark:text-white/35"
+              }`}
+            >
+              <span className={`grid h-8 w-8 place-items-center rounded-full ${step === index ? "bg-white text-violet-700" : "bg-white/80 text-violet-700 dark:bg-white/15 dark:text-white"}`}>
+                {index < maxStep ? <Check className="h-4 w-4" /> : index + 1}
+              </span>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {error && <div className="mb-5 rounded-2xl bg-red-50 px-4 py-3 text-sm font-black text-red-700 dark:bg-red-950/30 dark:text-red-200">{error}</div>}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <section className="min-w-0 rounded-[1.75rem] border border-violet-100 bg-white/90 p-5 shadow-soft dark:border-violet-900/70 dark:bg-white/10">

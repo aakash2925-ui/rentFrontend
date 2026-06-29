@@ -9,10 +9,10 @@ import { useAuth } from "@/context/AuthContext";
 
 export default function AddToCartButton({ property, className = "", compact = false, showGoToCart = true }) {
   const router = useRouter();
+  const [showCartAction, setShowCartAction] = useState(false);
   const { addItem, items, removeItem } = useCart();
   const { showToast } = useToast();
   const { user, loading } = useAuth();
-  const [showCartAction, setShowCartAction] = useState(false);
   const disabled = !property?._id;
   const inCart = items.some((item) => item._id === property._id);
 
@@ -26,6 +26,7 @@ export default function AddToCartButton({ property, className = "", compact = fa
     }
     if (inCart) {
       removeItem(property._id);
+      setShowCartAction(false);
       showToast("Removed from cart");
       return;
     }
