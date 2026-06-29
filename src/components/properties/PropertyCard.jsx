@@ -5,6 +5,7 @@ import { CalendarClock, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { uploadUrl } from "@/lib/api";
 import { minRentalDaysOf } from "@/lib/itemFields";
+import AddToCartButton from "@/components/cart/AddToCartButton";
 import WishlistButton from "./WishlistButton";
 
 export default function PropertyCard({ property }) {
@@ -45,9 +46,9 @@ export default function PropertyCard({ property }) {
         <div className="mt-4 grid gap-2 text-xs text-stone-600 dark:text-stone-300">
           <span className="flex items-center gap-1"><CalendarClock className="h-4 w-4" /> {minRentalDaysOf(property)}+ days</span>
         </div>
-        <Link href={`/items/${property._id}`} className="btn-primary mt-4 w-full">
-          View details
-        </Link>
+        <div className="mt-4">
+          <AddToCartButton property={property} className="w-full" compact />
+        </div>
       </div>
     </article>
   );

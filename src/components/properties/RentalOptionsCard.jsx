@@ -45,6 +45,7 @@ export default function RentalOptionsCard({ property }) {
     pincode: ""
   });
   const [availability, setAvailability] = useState({ status: "idle", message: "" });
+  const [showCartAction, setShowCartAction] = useState(false);
   const rentalDays = rentalDaysBetween(form.startDate, form.endDate);
   const inCart = items.some((item) => item._id === property._id);
   const datesValid = form.startDate && form.endDate && form.startDate >= earliestStartDate && form.endDate >= form.startDate && rentalDays >= minRentalDays;
@@ -93,11 +94,12 @@ export default function RentalOptionsCard({ property }) {
     }
     addItem(property, { startDate: form.startDate, endDate: form.endDate, pincode: form.pincode });
     showToast("Added to cart");
-    router.push("/cart");
+    setShowCartAction(true);
   };
 
   const removeFromCart = () => {
     removeItem(property._id);
+    setShowCartAction(false);
     showToast("Removed from cart");
   };
 
@@ -172,6 +174,19 @@ export default function RentalOptionsCard({ property }) {
           </button>
         )}
       </div>
+      {showCartAction && inCart && (
+        <div className="fixed bottom-5 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl border border-violet-100 bg-white/95 p-3 shadow-glow backdrop-blur-xl dark:border-violet-900/70 dark:bg-stone-950/95">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-black text-ink dark:text-white">Item added to cart</p>
+              <p className="line-clamp-1 text-xs font-semibold text-violet-950/60 dark:text-violet-100/65">{property.title}</p>
+            </div>
+            <button type="button" className="btn-primary min-h-11 shrink-0 px-5" onClick={() => router.push("/cart")}>
+              Go to Cart
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
