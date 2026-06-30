@@ -3,7 +3,7 @@ export const statusLabels = {
   contacted: "Contacted",
   rented: "Confirmed rental",
   returned: "Returned",
-  closed: "Closed"
+  closed: "Cancelled"
 };
 
 export const statusDescriptions = {
@@ -11,15 +11,15 @@ export const statusDescriptions = {
   contacted: "Admin has contacted the renter.",
   rented: "Inventory is reserved and quantity has been reduced.",
   returned: "Rental is complete and quantity has been restored.",
-  closed: "Request is closed."
+  closed: "Booking was cancelled."
 };
 
 export const statusTone = {
   pending: "bg-amber-50 text-amber-700",
   contacted: "bg-blue-50 text-blue-700",
   rented: "bg-green-50 text-green-700",
-  returned: "bg-meadow/10 text-meadow",
-  closed: "bg-stone-100 text-stone-700"
+  returned: "bg-green-50 text-green-700",
+  closed: "bg-red-50 text-red-700"
 };
 
 export const statusLabel = (status) => statusLabels[status] || status;

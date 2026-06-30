@@ -88,19 +88,26 @@ const deliverySlotWindows = {
 };
 
 const orderTrackerSteps = [
-  { key: "pending", label: "Placed", text: "Booking request created" },
-  { key: "paid", label: "Payment", text: "Payment/COD selected" },
-  { key: "rented", label: "Confirmed", text: "Admin confirmed order" },
-  { key: "delivery", label: "Delivery", text: "Ready for handover" },
-  { key: "returned", label: "Completed", text: "Rental completed" }
+  { status: "order_received", label: "Order Received" },
+  { status: "order_confirmed", label: "Order Confirmed" },
+  { status: "order_packed", label: "Order Packed" },
+  { status: "delivery_scheduled", label: "Delivery Scheduled" },
+  { status: "delivery_partner_booked", label: "Delivery Partner Booked" },
+  { status: "order_delivered", label: "Order Delivered" },
+  { status: "order_return_due", label: "Order Return Due" },
+  { status: "pickup_scheduled", label: "Pickup Scheduled" },
+  { status: "pickup_partner_booked", label: "Pickup Partner Booked" },
+  { status: "return_received", label: "Return Received" },
+  { status: "order_under_inspection", label: "Order Under Inspection" },
+  { status: "order_completed", label: "Order Completed" }
 ];
 
 const bookingTrackerIndex = (booking) => {
   if (booking.paymentStatus === "failed" || booking.paymentStatus === "cancelled" || booking.status === "closed") return -1;
-  if (booking.status === "returned") return 4;
-  if (booking.status === "rented") return 3;
-  if (booking.status === "contacted") return 2;
-  if (booking.paymentStatus === "paid" || booking.paymentMethod === "cod") return 1;
+  const byOrderStatus = orderTrackerSteps.findIndex((step) => step.status === booking.orderStatus);
+  if (byOrderStatus >= 0) return byOrderStatus;
+  if (booking.status === "returned") return orderTrackerSteps.length - 1;
+  if (booking.status === "rented") return 1;
   return 0;
 };
 
@@ -401,6 +408,33 @@ function BookingCard({ booking, compact = false }) {
 }
 
 function OrderTrackingModal({ booking, cancelled, deliveryDate, deliveryLabel, deliveryWindow, onClose, trackerIndex }) {
+  const [timeline, setTimeline] = useState(null);
+  const [loadingTimeline, setLoadingTimeline] = useState(true);
+
+  useEffect(() => {
+    let cancelledRequest = false;
+    api.get(`/bookings/${booking._id}/timeline`)
+      .then(({ data }) => {
+        if (!cancelledRequest) setTimeline(data.timeline);
+      })
+      .catch(() => {
+        if (!cancelledRequest) setTimeline(null);
+      })
+      .finally(() => {
+        if (!cancelledRequest) setLoadingTimeline(false);
+      });
+    return () => {
+      cancelledRequest = true;
+    };
+  }, [booking._id]);
+
+  const resolvedIndex = timeline?.orderStatus ? orderTrackerSteps.findIndex((step) => step.status === timeline.orderStatus) : trackerIndex;
+  const currentIndex = resolvedIndex >= 0 ? resolvedIndex : trackerIndex;
+  const timelineSteps = orderTrackerSteps.map((step) => {
+    const savedStep = timeline?.steps?.find((item) => item.status === step.status);
+    return { ...step, updatedAt: savedStep?.updatedAt || null };
+  });
+
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4 py-6 backdrop-blur-sm">
       <section className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[1.5rem] border border-violet-100 bg-white p-5 shadow-glow dark:border-violet-900/70 dark:bg-stone-950">
@@ -423,19 +457,27 @@ function OrderTrackingModal({ booking, cancelled, deliveryDate, deliveryLabel, d
           {deliveryLabel} · {booking.deliveryAddress || "Address shared"}
         </p>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-5">
-          {orderTrackerSteps.map((step, index) => {
-            const done = !cancelled && index <= trackerIndex;
-            const current = !cancelled && index === trackerIndex;
+        {loadingTimeline && <p className="mt-5 rounded-2xl bg-mist/70 px-4 py-3 text-sm font-black text-violet-700 dark:bg-white/10 dark:text-violet-100">Loading timeline...</p>}
+        <div className="mt-6 space-y-0">
+          {timelineSteps.map((step, index) => {
+            const done = !cancelled && index < currentIndex;
+            const current = !cancelled && index === currentIndex;
             return (
-              <div key={step.key} className="min-w-0 rounded-2xl border border-violet-100 bg-mist/70 p-3 dark:border-violet-900/70 dark:bg-white/10">
-                <div className={`grid h-10 w-10 place-items-center rounded-full border text-xs font-black ${
-                  done ? "border-meadow bg-meadow text-white" : "border-violet-100 bg-white text-violet-500 dark:border-violet-900/70 dark:bg-stone-950 dark:text-violet-100/60"
-                }`}>
-                  {done ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+              <div key={step.status} className="grid grid-cols-[44px_1fr] gap-3">
+                <div className="relative flex justify-center">
+                  {index < timelineSteps.length - 1 && <span className={`absolute top-10 h-full w-0.5 ${done ? "bg-meadow" : "bg-violet-100 dark:bg-violet-900/70"}`} />}
+                  <div className={`relative z-10 grid h-10 w-10 place-items-center rounded-full border text-xs font-black ${
+                    done ? "border-meadow bg-meadow text-white" : current ? "border-violet-700 bg-violet-700 text-white" : "border-violet-100 bg-white text-violet-400 dark:border-violet-900/70 dark:bg-stone-950 dark:text-violet-100/50"
+                  }`}>
+                    {done ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+                  </div>
                 </div>
-                <p className={`mt-3 break-words text-sm font-black ${current ? "text-meadow" : "text-ink dark:text-white"}`}>{step.label}</p>
-                <p className="mt-1 break-words text-xs font-semibold leading-5 text-violet-950/55 dark:text-violet-100/50">{step.text}</p>
+                <div className={`mb-4 rounded-2xl border p-4 ${current ? "border-violet-200 bg-violet-50 dark:border-violet-800 dark:bg-violet-950/30" : "border-violet-100 bg-mist/70 dark:border-violet-900/70 dark:bg-white/10"}`}>
+                  <p className={`break-words text-sm font-black ${done ? "text-meadow" : current ? "text-violet-700 dark:text-violet-100" : "text-violet-950/45 dark:text-violet-100/45"}`}>{step.label}</p>
+                  <p className="mt-1 text-xs font-semibold text-violet-950/55 dark:text-violet-100/50">
+                    {step.updatedAt ? formatDateTime(step.updatedAt) : current ? "Current step" : "Pending"}
+                  </p>
+                </div>
               </div>
             );
           })}
@@ -1202,4 +1244,15 @@ function StatusPill({ label, className = "bg-violet-50 text-violet-700 dark:bg-v
 function formatDate(value) {
   if (!value) return "-";
   return new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function formatDateTime(value) {
+  if (!value) return "-";
+  return new Date(value).toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 }

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BarChart3, Boxes, CalendarCheck, History, ImagePlus, LayoutDashboard, Mail, Menu, Package, PackageCheck, PackagePlus, Pencil, Phone, Save, ShieldCheck, Tags, TicketPercent, Trash2, Users, X } from "lucide-react";
+import { BarChart3, Boxes, CalendarCheck, Clock3, CreditCard, History, ImagePlus, LayoutDashboard, Mail, MapPin, Menu, Package, PackageCheck, PackagePlus, Pencil, Phone, Save, ShieldCheck, Tags, TicketPercent, Trash2, Truck, Users, X } from "lucide-react";
 import api, { uploadUrl } from "@/lib/api";
 import { conditionOf, itemTypeOf, quantityOf } from "@/lib/itemFields";
 import ErrorMessage from "@/components/common/ErrorMessage";
@@ -34,6 +34,23 @@ const bookingStatusOptions = [
   ["returned", "Completed"]
 ];
 
+const bookingFilterStatusOptions = bookingStatusOptions.filter(([status]) => status !== "returned");
+
+const orderTimelineOptions = [
+  ["order_received", "Order Received"],
+  ["order_confirmed", "Order Confirmed"],
+  ["order_packed", "Order Packed"],
+  ["delivery_scheduled", "Delivery Scheduled"],
+  ["delivery_partner_booked", "Delivery Partner Booked"],
+  ["order_delivered", "Order Delivered"],
+  ["order_return_due", "Order Return Due"],
+  ["pickup_scheduled", "Pickup Scheduled"],
+  ["pickup_partner_booked", "Pickup Partner Booked"],
+  ["return_received", "Return Received"],
+  ["order_under_inspection", "Order Under Inspection"],
+  ["order_completed", "Order Completed"]
+];
+
 const bookingStatusLabel = (status) => ({
   pending: "Pending",
   contacted: "Contacted",
@@ -41,6 +58,14 @@ const bookingStatusLabel = (status) => ({
   returned: "Completed",
   closed: "Cancelled"
 }[status] || status);
+
+const orderTimelineLabel = (status) => orderTimelineOptions.find(([value]) => value === status)?.[1] || "Order Received";
+
+const canSelectOrderTimeline = (currentStatus, nextStatus) => {
+  const currentIndex = orderTimelineOptions.findIndex(([value]) => value === (currentStatus || "order_received"));
+  const nextIndex = orderTimelineOptions.findIndex(([value]) => value === nextStatus);
+  return currentIndex >= 0 && nextIndex >= 0 && (nextIndex === currentIndex || nextIndex === currentIndex + 1);
+};
 
 const defaultItemTypeImage = "https://images.unsplash.com/photo-1520549233664-03f65c1d1327?auto=format&fit=crop&w=900&q=80";
 const emptyVoucherForm = {
@@ -74,6 +99,7 @@ export default function AdminDashboardPage() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [filters, setFilters] = useState({ search: "", status: "", type: "", role: "", dateFrom: "", dateTo: "" });
   const [logPagination, setLogPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
+  const [bookingPagination, setBookingPagination] = useState({ page: 1, limit: 6, total: 0, totalPages: 1 });
   const [voucherForm, setVoucherForm] = useState(emptyVoucherForm);
   const [editingVoucher, setEditingVoucher] = useState(null);
   const { showToast } = useToast();
@@ -83,7 +109,7 @@ export default function AdminDashboardPage() {
       api.get("/admin/stats"),
       api.get("/admin/users"),
       api.get("/admin/properties"),
-      api.get("/bookings"),
+      api.get("/bookings", { params: { page: 1, limit: 6 } }),
       api.get("/contact?limit=50"),
       api.get("/admin/activity-logs", { params: { page: 1, limit: 10 } }),
       api.get("/item-types"),
@@ -101,6 +127,7 @@ export default function AdminDashboardPage() {
           vouchers: vouchers.data.vouchers
         });
         setLogPagination(logs.data.pagination || { page: 1, limit: 10, total: logs.data.logs.length, totalPages: 1 });
+        setBookingPagination(bookings.data.pagination || { page: 1, limit: 6, total: bookings.data.bookings.length, totalPages: 1 });
       })
       .catch(() => setError("Unable to load admin dashboard"))
       .finally(() => setLoading(false));
@@ -275,21 +302,47 @@ export default function AdminDashboardPage() {
     return logs;
   };
 
+  const loadBookings = useCallback(async ({ page = 1, nextFilters = filters } = {}) => {
+    const { data: response } = await api.get("/bookings", {
+      params: {
+        page,
+        limit: bookingPagination.limit,
+        search: nextFilters.search || undefined,
+        status: nextFilters.status || undefined,
+        dateFrom: nextFilters.dateFrom || undefined,
+        dateTo: nextFilters.dateTo || undefined
+      }
+    });
+    setData((current) => ({ ...current, bookings: response.bookings }));
+    setBookingPagination(response.pagination || { page, limit: bookingPagination.limit, total: response.bookings.length, totalPages: 1 });
+    return response;
+  }, [bookingPagination.limit, filters]);
+
   const updateBookingStatus = async (id, status) => {
     try {
-      const { data: response } = await api.put(`/bookings/${id}/status`, { status });
+      await api.put(`/bookings/${id}/status`, { status });
       const [{ data: properties }] = await Promise.all([
         api.get("/admin/properties"),
-        loadActivityLogs()
+        loadActivityLogs(),
+        loadBookings({ page: bookingPagination.page })
       ]);
       setData((current) => ({
         ...current,
-        bookings: current.bookings.map((booking) => booking._id === id ? { ...booking, status: response.booking.status, inventoryReserved: response.booking.inventoryReserved } : booking),
         properties: properties.properties
       }));
       showToast("Booking request status updated");
     } catch (err) {
       showToast(err.response?.data?.message || "Unable to update booking request", "error");
+    }
+  };
+
+  const updateOrderStatus = async (id, orderStatus) => {
+    try {
+      await api.put(`/bookings/${id}/order-status`, { orderStatus });
+      await Promise.all([loadActivityLogs(), loadBookings({ page: bookingPagination.page })]);
+      showToast("Order timeline updated");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to update order timeline", "error");
     }
   };
 
@@ -452,7 +505,7 @@ export default function AdminDashboardPage() {
               )}
               {activeTask === "items" && <ItemsPanel items={data.properties} filters={filters} setFilters={setFilters} deleteItem={deleteItem} exportCsv={exportCsv} />}
               {activeTask === "vouchers" && <VouchersPanel vouchers={data.vouchers} voucherForm={voucherForm} setVoucherForm={setVoucherForm} editingVoucher={editingVoucher} saveVoucher={saveVoucher} startEditVoucher={startEditVoucher} resetVoucherForm={resetVoucherForm} deleteVoucher={deleteVoucher} exportCsv={exportCsv} />}
-              {activeTask === "bookings" && <BookingsPanel bookings={data.bookings} filters={filters} setFilters={setFilters} updateBookingStatus={updateBookingStatus} updatePaymentStatus={updatePaymentStatus} exportCsv={exportCsv} />}
+              {activeTask === "bookings" && <BookingsPanel bookings={data.bookings} pagination={bookingPagination} filters={filters} setFilters={setFilters} loadBookings={loadBookings} updateBookingStatus={updateBookingStatus} updateOrderStatus={updateOrderStatus} updatePaymentStatus={updatePaymentStatus} exportCsv={exportCsv} />}
               {activeTask === "contacts" && <ContactsPanel contacts={data.contacts} filters={filters} setFilters={setFilters} updateContactStatus={updateContactStatus} deleteContact={deleteContact} exportCsv={exportCsv} />}
               {activeTask === "activity" && <ActivityPanel logs={data.logs} pagination={logPagination} filters={filters} setFilters={setFilters} loadActivityLogs={loadActivityLogs} exportCsv={exportCsv} />}
               {activeTask === "users" && <UsersPanel users={data.users} filters={filters} setFilters={setFilters} updateUserRole={updateUserRole} updateUserKycStatus={updateUserKycStatus} deleteUserKyc={deleteUserKyc} exportCsv={exportCsv} />}
@@ -860,75 +913,147 @@ function VouchersPanel({ vouchers, voucherForm, setVoucherForm, editingVoucher, 
   );
 }
 
-function BookingsPanel({ bookings, filters, setFilters, updateBookingStatus, updatePaymentStatus, exportCsv }) {
-  const filteredBookings = bookings.filter((booking) => {
-    const q = filters.search.toLowerCase();
-    const text = `${booking._id || ""} ${booking.property?.title || ""} ${booking.user?.name || ""} ${booking.user?.email || ""} ${booking.paymentStatus || ""}`.toLowerCase();
-    return (!q || text.includes(q)) && (!filters.status || booking.status === filters.status) && matchesDate(booking.createdAt, filters);
+function BookingsPanel({ bookings, pagination, filters, setFilters, loadBookings, updateBookingStatus, updateOrderStatus, updatePaymentStatus, exportCsv }) {
+  const currentPage = pagination.page || 1;
+  const totalPages = pagination.totalPages || 1;
+  const totalBookings = pagination.total || 0;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadBookings({ page: 1, nextFilters: filters }).catch(() => {});
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [filters.search, filters.status, filters.dateFrom, filters.dateTo, loadBookings]);
+
+  const movePage = (nextPage) => {
+    loadBookings({ page: Math.min(Math.max(nextPage, 1), totalPages), nextFilters: filters }).catch(() => {});
+  };
+
+  const exportRows = bookings.map((booking) => {
+    const amount = Number(booking.finalAmount || booking.totalAmount || 0);
+    return {
+      id: booking._id,
+      item: booking.property?.title,
+      user: booking.user?.name,
+      status: bookingStatusLabel(booking.status),
+      orderStatus: orderTimelineLabel(booking.orderStatus || "order_received"),
+      payment: booking.paymentStatus,
+      amount
+    };
   });
 
   return (
-    <section className="rounded-2xl border border-violet-100 bg-white p-5 dark:border-violet-900/70 dark:bg-stone-950/70">
+    <section className="rounded-2xl border border-violet-100 bg-white p-4 shadow-sm dark:border-violet-900/70 dark:bg-stone-950/70 md:p-5">
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
         <div>
           <h2 className="text-xl font-black">Booking Requests</h2>
-          <p className="mt-1 text-sm text-stone-500">Approve, reject, complete, and review booking requests with payment details.</p>
+          <p className="mt-1 text-sm text-stone-500">Latest active orders first. Completed bookings are hidden from this work queue.</p>
         </div>
-        <button className="btn-secondary" onClick={() => exportCsv("booking-requests.csv", filteredBookings.map((booking) => ({ id: booking._id, item: booking.property?.title, user: booking.user?.name, status: bookingStatusLabel(booking.status), payment: booking.paymentStatus, amount: booking.finalAmount || booking.totalAmount })))}>
+        <button className="btn-secondary" onClick={() => exportCsv("booking-requests.csv", exportRows)}>
           Export CSV
         </button>
       </div>
-      <AdminFilters showDates filters={filters} setFilters={setFilters} statusOptions={[["", "All statuses"], ...bookingStatusOptions]} />
-      <div className="mt-4 grid gap-3">
-        {filteredBookings.length ? filteredBookings.map((booking) => (
-          <div key={booking._id} className="rounded-2xl border border-violet-100 bg-mist/80 p-4 text-sm dark:border-violet-900/70 dark:bg-white/10">
-            <div>
-              <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
-                <div>
-                  <strong className="text-base text-ink dark:text-white">{booking.property?.title || "Rental item"}</strong>
-                  <p className="mt-1 text-stone-600 dark:text-stone-300">{booking.user?.name || "Customer"} · {booking.user?.email || "No email"}</p>
-                  <p className="mt-1 text-stone-600 dark:text-stone-300">Booking ID: {booking._id}</p>
+      <AdminFilters showDates filters={filters} setFilters={setFilters} statusOptions={[["", "All active statuses"], ...bookingFilterStatusOptions]} />
+      <div className="mt-4 grid gap-4">
+        {bookings.length ? bookings.map((booking) => {
+          const amount = Number(booking.finalAmount || booking.totalAmount || 0);
+          const deliveryTime = booking.deliveryEta || (booking.deliverySpeed === "fast" ? "Within 2 hours" : "Within 24 hours");
+          return (
+            <article key={booking._id} className="overflow-hidden rounded-2xl border border-violet-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-soft dark:border-violet-900/70 dark:bg-stone-950/80">
+              <div className="border-b border-violet-100 bg-gradient-to-r from-violet-50 via-white to-lavender/40 p-4 dark:border-violet-900/70 dark:from-violet-950/50 dark:via-stone-950 dark:to-violet-950/30">
+                <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-violet-700 px-3 py-1 text-xs font-black text-white">#{String(booking._id).slice(-8)}</span>
+                      <span className={`rounded-full px-3 py-1 text-xs font-black ${statusTone[booking.status] || "bg-violet-50 text-violet-700"}`}>{bookingStatusLabel(booking.status)}</span>
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-violet-700 shadow-sm dark:bg-stone-900 dark:text-violet-100">{orderTimelineLabel(booking.orderStatus || "order_received")}</span>
+                    </div>
+                    <h3 className="mt-3 break-words text-lg font-black text-ink dark:text-white">{booking.property?.title || "Rental item"}</h3>
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-violet-950/60 dark:text-violet-100/65">
+                      <span>{booking.user?.name || "Customer"}</span>
+                      <span>{booking.user?.email || "No email"}</span>
+                      <span>{formatDate(booking.createdAt)}</span>
+                    </div>
+                  </div>
+                  <div className="rounded-2xl bg-white px-5 py-4 text-left shadow-sm dark:bg-stone-900 xl:text-right">
+                    <p className="text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">Payable</p>
+                    <p className="mt-1 text-2xl font-black text-meadow">₹{amount.toLocaleString()}</p>
+                    <p className="mt-1 text-xs font-black uppercase text-violet-950/45 dark:text-violet-100/45">{booking.paymentStatus || "pending"}</p>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2 lg:justify-end">
-                  <span className={`rounded-full px-3 py-1 text-xs font-black ${statusTone[booking.status] || "bg-violet-50 text-violet-700"}`}>{bookingStatusLabel(booking.status)}</span>
-                  <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-violet-700 dark:bg-stone-950 dark:text-violet-100">payment {booking.paymentStatus}</span>
+              </div>
+              <div className="p-4">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <InfoTile icon={CalendarCheck} label="Rental dates" value={`${formatDate(booking.startDate)} - ${formatDate(booking.endDate)}`} />
+                  <InfoTile icon={Truck} label="Delivery time" value={deliveryTime} />
+                  <InfoTile icon={CreditCard} label="Payment method" value={booking.paymentMethod === "razorpay" ? "Razorpay" : "Cash on Delivery"} />
+                  <InfoTile icon={Clock3} label="Timeline" value={orderTimelineLabel(booking.orderStatus || "order_received")} />
+                </div>
+                <div className="mt-3 rounded-2xl border border-violet-100 bg-mist/70 p-3 text-sm font-semibold text-violet-950/65 dark:border-violet-900/70 dark:bg-white/10 dark:text-violet-100/70">
+                  <div className="flex min-w-0 gap-2">
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-meadow" />
+                    <span className="break-words">{booking.deliveryAddress || "Address shared by customer"}</span>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-3 lg:grid-cols-[1.2fr_1fr_1fr_auto_auto] lg:items-center">
+                  <label className="grid gap-1 text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">
+                    Order timeline
+                    <select className="field" value={booking.orderStatus || "order_received"} onChange={(event) => updateOrderStatus(booking._id, event.target.value)}>
+                      {orderTimelineOptions.map(([value, label]) => (
+                        <option key={value} value={value} disabled={!canSelectOrderTimeline(booking.orderStatus, value)}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-1 text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">
+                    Booking status
+                    <select className="field" value={booking.status} onChange={(event) => updateBookingStatus(booking._id, event.target.value)}>
+                      {bookingStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </label>
+                  <label className="grid gap-1 text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">
+                    Payment
+                    <select className="field" value={booking.paymentStatus} onChange={(event) => updatePaymentStatus(booking._id, event.target.value)}>
+                      <option value="pending">payment pending</option>
+                      <option value="paid">paid</option>
+                      <option value="failed">failed</option>
+                      <option value="cancelled">cancelled</option>
+                      <option value="refunded">refunded</option>
+                    </select>
+                  </label>
+                  <button className="btn-primary lg:mt-5" type="button" onClick={() => updateBookingStatus(booking._id, "rented")}>Approve</button>
+                  <button className="btn-secondary lg:mt-5" type="button" onClick={() => updateBookingStatus(booking._id, "closed")}>Reject</button>
                 </div>
               </div>
-              <div className="mt-4 grid gap-3 md:grid-cols-5">
-                <InfoTile label="Dates" value={`${new Date(booking.startDate).toLocaleDateString()} - ${new Date(booking.endDate).toLocaleDateString()}`} />
-                <InfoTile label="Amount" value={`₹${Number(booking.finalAmount || booking.totalAmount || 0).toLocaleString()}`} />
-                <InfoTile label="Method" value={booking.paymentMethod === "razorpay" ? "Razorpay" : "Cash on Delivery"} />
-                <InfoTile label="Delivery time" value={booking.deliveryEta || (booking.deliverySpeed === "fast" ? "Within 2 hours" : "Within 24 hours")} />
-                <InfoTile label="Quantity" value={`${booking.quantity || 1} item(s)`} />
-              </div>
-              <p className="mt-3 text-stone-600 dark:text-stone-300">Delivery: {booking.deliveryAddress || "Address shared"}</p>
-              <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto_auto] md:items-center">
-                <select className="field" value={booking.status} onChange={(event) => updateBookingStatus(booking._id, event.target.value)}>
-                  {bookingStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select>
-                <select className="field" value={booking.paymentStatus} onChange={(event) => updatePaymentStatus(booking._id, event.target.value)}>
-                  <option value="pending">payment pending</option>
-                  <option value="paid">paid</option>
-                  <option value="failed">failed</option>
-                  <option value="cancelled">cancelled</option>
-                  <option value="refunded">refunded</option>
-                </select>
-                <button className="btn-primary" type="button" onClick={() => updateBookingStatus(booking._id, "rented")}>Approve</button>
-                <button className="btn-secondary" type="button" onClick={() => updateBookingStatus(booking._id, "closed")}>Reject</button>
-              </div>
-            </div>
-          </div>
-        )) : <EmptyState title="No matching booking requests" message="Booking requests are created when users complete the rental checkout." />}
+            </article>
+          );
+        }) : <EmptyState title="No active booking requests" message="Completed orders are hidden. New and in-progress bookings will appear here first." />}
       </div>
+      {totalBookings > pagination.limit && (
+        <div className="mt-5 flex flex-col items-center justify-between gap-3 border-t border-violet-100 pt-4 text-sm font-bold text-violet-950/60 dark:border-violet-900/70 dark:text-violet-100/60 sm:flex-row">
+          <span>Showing {(currentPage - 1) * pagination.limit + 1}-{Math.min(currentPage * pagination.limit, totalBookings)} of {totalBookings}</span>
+          <div className="flex items-center gap-2">
+            <button className="btn-secondary" type="button" disabled={currentPage === 1} onClick={() => movePage(currentPage - 1)}>Previous</button>
+            <span className="rounded-full bg-violet-50 px-4 py-2 text-violet-700 dark:bg-violet-950/60 dark:text-violet-100">Page {currentPage} / {totalPages}</span>
+            <button className="btn-secondary" type="button" disabled={currentPage === totalPages} onClick={() => movePage(currentPage + 1)}>Next</button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
 
-function InfoTile({ label, value }) {
+function InfoTile({ icon: Icon, label, value }) {
   return (
-    <div className="rounded-xl bg-white p-3 dark:bg-stone-950/70">
-      <p className="text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">{label}</p>
-      <p className="mt-1 font-black text-ink dark:text-white">{value}</p>
+    <div className="min-w-0 rounded-xl bg-white p-3 dark:bg-stone-950/70">
+      <div className="flex min-w-0 items-start gap-2">
+        {Icon && <Icon className="mt-0.5 h-4 w-4 shrink-0 text-meadow" />}
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">{label}</p>
+          <p className="mt-1 break-words font-black text-ink dark:text-white">{value}</p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1290,6 +1415,11 @@ function matchesDate(value, filters) {
     if (date > end) return false;
   }
   return true;
+}
+
+function formatDate(value) {
+  if (!value) return "-";
+  return new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 function AdminTable({ title, headers, rows }) {
