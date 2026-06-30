@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BarChart3, Boxes, CalendarCheck, Clock3, CreditCard, History, ImagePlus, LayoutDashboard, Mail, MapPin, Menu, Package, PackageCheck, PackagePlus, Pencil, Phone, Save, ShieldCheck, Tags, TicketPercent, Trash2, Truck, Users, X } from "lucide-react";
+import { BarChart3, Boxes, CalendarCheck, History, ImagePlus, LayoutDashboard, Mail, MapPin, Menu, Package, PackageCheck, PackagePlus, Pencil, Phone, Save, ShieldCheck, Tags, TicketPercent, Trash2, Truck, Users, X } from "lucide-react";
 import api, { uploadUrl } from "@/lib/api";
 import { conditionOf, itemTypeOf, quantityOf } from "@/lib/itemFields";
 import ErrorMessage from "@/components/common/ErrorMessage";
@@ -965,8 +965,7 @@ function BookingsPanel({ bookings, pagination, filters, setFilters, loadBookings
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-violet-700 px-3 py-1 text-xs font-black text-white">#{String(booking._id).slice(-8)}</span>
-                      <span className={`rounded-full px-3 py-1 text-xs font-black ${statusTone[booking.status] || "bg-violet-50 text-violet-700"}`}>{bookingStatusLabel(booking.status)}</span>
-                      <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-violet-700 shadow-sm dark:bg-stone-900 dark:text-violet-100">{orderTimelineLabel(booking.orderStatus || "order_received")}</span>
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-violet-700 shadow-sm dark:bg-stone-900 dark:text-violet-100">{booking.paymentStatus || "pending"}</span>
                     </div>
                     <h3 className="mt-3 break-words text-lg font-black text-ink dark:text-white">{booking.property?.title || "Rental item"}</h3>
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-violet-950/60 dark:text-violet-100/65">
@@ -978,24 +977,27 @@ function BookingsPanel({ bookings, pagination, filters, setFilters, loadBookings
                   <div className="rounded-2xl bg-white px-5 py-4 text-left shadow-sm dark:bg-stone-900 xl:text-right">
                     <p className="text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">Payable</p>
                     <p className="mt-1 text-2xl font-black text-meadow">₹{amount.toLocaleString()}</p>
-                    <p className="mt-1 text-xs font-black uppercase text-violet-950/45 dark:text-violet-100/45">{booking.paymentStatus || "pending"}</p>
+                    <p className="mt-1 text-xs font-black uppercase text-violet-950/45 dark:text-violet-100/45">{booking.paymentMethod === "razorpay" ? "Razorpay" : "Cash on Delivery"}</p>
                   </div>
                 </div>
               </div>
               <div className="p-4">
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1.4fr]">
                   <InfoTile icon={CalendarCheck} label="Rental dates" value={`${formatDate(booking.startDate)} - ${formatDate(booking.endDate)}`} />
                   <InfoTile icon={Truck} label="Delivery time" value={deliveryTime} />
-                  <InfoTile icon={CreditCard} label="Payment method" value={booking.paymentMethod === "razorpay" ? "Razorpay" : "Cash on Delivery"} />
-                  <InfoTile icon={Clock3} label="Timeline" value={orderTimelineLabel(booking.orderStatus || "order_received")} />
-                </div>
-                <div className="mt-3 rounded-2xl border border-violet-100 bg-mist/70 p-3 text-sm font-semibold text-violet-950/65 dark:border-violet-900/70 dark:bg-white/10 dark:text-violet-100/70">
-                  <div className="flex min-w-0 gap-2">
-                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-meadow" />
-                    <span className="break-words">{booking.deliveryAddress || "Address shared by customer"}</span>
+                  <div className="min-w-0 rounded-xl bg-white p-3 dark:bg-stone-950/70">
+                    <div className="flex min-w-0 items-start gap-2">
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-meadow" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">Delivery address</p>
+                        <p className="mt-1 break-words font-black text-ink dark:text-white">{booking.deliveryAddress || "Address shared by customer"}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="mt-4 grid gap-3 lg:grid-cols-[1.2fr_1fr_1fr_auto_auto] lg:items-center">
+                <div className="mt-4 rounded-2xl border border-violet-100 bg-mist/70 p-3 dark:border-violet-900/70 dark:bg-white/10">
+                  <p className="mb-3 text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">Manage booking</p>
+                  <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_1fr_auto_auto] lg:items-center">
                   <label className="grid gap-1 text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">
                     Order timeline
                     <select className="field" value={booking.orderStatus || "order_received"} onChange={(event) => updateOrderStatus(booking._id, event.target.value)}>
@@ -1022,8 +1024,9 @@ function BookingsPanel({ bookings, pagination, filters, setFilters, loadBookings
                       <option value="refunded">refunded</option>
                     </select>
                   </label>
-                  <button className="btn-primary lg:mt-5" type="button" onClick={() => updateBookingStatus(booking._id, "rented")}>Approve</button>
-                  <button className="btn-secondary lg:mt-5" type="button" onClick={() => updateBookingStatus(booking._id, "closed")}>Reject</button>
+                    <button className="btn-primary lg:mt-5" type="button" onClick={() => updateBookingStatus(booking._id, "rented")}>Approve</button>
+                    <button className="btn-secondary lg:mt-5" type="button" onClick={() => updateBookingStatus(booking._id, "closed")}>Reject</button>
+                  </div>
                 </div>
               </div>
             </article>
