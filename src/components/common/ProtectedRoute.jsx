@@ -11,7 +11,9 @@ export default function ProtectedRoute({ children, roles }) {
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
-    if (!loading && user && roles?.length && !roles.includes(user.role)) router.replace("/dashboard");
+    if (!loading && user && roles?.length && !roles.includes(user.role)) {
+      router.replace(user.role === "admin" ? "/admin" : user.role === "delivery" ? "/delivery" : "/dashboard");
+    }
   }, [loading, user, roles, router]);
 
   if (loading || !user) return <Loading label="Checking access" />;

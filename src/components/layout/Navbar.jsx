@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, PlusCircle, Search, ShoppingCart, UserRound } from "lucide-react";
+import { LogOut, Menu, PlusCircle, Search, ShoppingCart, UserRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -16,7 +16,7 @@ const links = [
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { count } = useCart();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -66,6 +66,12 @@ export default function Navbar() {
   const closeMenu = () => {
     setOpen(false);
     setShowSuggestions(false);
+  };
+
+  const signOut = () => {
+    logout();
+    closeMenu();
+    router.push("/");
   };
   const openSuggestion = (item) => {
     setQuery(item.title || "");
@@ -165,7 +171,11 @@ export default function Navbar() {
               <PlusCircle className="h-4 w-4" /> Add
             </Link>
           )}
-          {user ? (
+          {user?.role === "delivery" ? (
+            <button type="button" onClick={signOut} className="btn-secondary">
+              <LogOut className="h-4 w-4" /> Logout
+            </button>
+          ) : user ? (
             <Link href={user.role === "admin" ? "/admin" : "/dashboard"} onClick={closeMenu} className="btn-secondary">
               <UserRound className="h-4 w-4" /> Dashboard
             </Link>

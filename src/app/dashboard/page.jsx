@@ -168,6 +168,16 @@ export default function UserDashboardPage() {
       .finally(() => setLoading(false));
   }, [user]);
 
+  useEffect(() => {
+    if (!user) return undefined;
+    const timer = setInterval(() => {
+      api.get("/bookings/my-bookings")
+        .then((response) => setBookings(response.data.bookings))
+        .catch(() => {});
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [user]);
+
   const selectSection = (id) => {
     setActiveSection(id);
     setMobileOpen(false);
@@ -409,16 +419,19 @@ function BookingCard({ booking, compact = false }) {
 
 function OrderTrackingModal({ booking, cancelled, deliveryDate, deliveryLabel, deliveryWindow, onClose, trackerIndex }) {
   const [timeline, setTimeline] = useState(null);
+  const [deliveryTimeline, setDeliveryTimeline] = useState(null);
   const [loadingTimeline, setLoadingTimeline] = useState(true);
 
   useEffect(() => {
     let cancelledRequest = false;
-    api.get(`/bookings/${booking._id}/timeline`)
-      .then(({ data }) => {
-        if (!cancelledRequest) setTimeline(data.timeline);
-      })
-      .catch(() => {
-        if (!cancelledRequest) setTimeline(null);
+    Promise.allSettled([
+      api.get(`/bookings/${booking._id}/timeline`),
+      api.get(`/delivery/bookings/${booking._id}/timeline`)
+    ])
+      .then(([orderResult, deliveryResult]) => {
+        if (cancelledRequest) return;
+        setTimeline(orderResult.status === "fulfilled" ? orderResult.value.data.timeline : null);
+        setDeliveryTimeline(deliveryResult.status === "fulfilled" ? deliveryResult.value.data : null);
       })
       .finally(() => {
         if (!cancelledRequest) setLoadingTimeline(false);
@@ -434,6 +447,8 @@ function OrderTrackingModal({ booking, cancelled, deliveryDate, deliveryLabel, d
     const savedStep = timeline?.steps?.find((item) => item.status === step.status);
     return { ...step, updatedAt: savedStep?.updatedAt || null };
   });
+  const deliverySteps = deliveryTimeline?.assignment?.statusHistory || [];
+  const deliveryLabels = deliveryTimeline?.labels || {};
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4 py-6 backdrop-blur-sm">
@@ -482,6 +497,30 @@ function OrderTrackingModal({ booking, cancelled, deliveryDate, deliveryLabel, d
             );
           })}
         </div>
+        {deliveryTimeline?.assignment && (
+          <div className="mt-6 rounded-2xl border border-violet-100 bg-mist/70 p-4 dark:border-violet-900/70 dark:bg-white/10">
+            <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+              <div>
+                <p className="text-xs font-black uppercase tracking-wide text-meadow">Delivery timeline</p>
+                <h4 className="mt-1 text-lg font-black text-ink dark:text-white">{deliveryLabels[deliveryTimeline.assignment.status] || deliveryTimeline.assignment.status}</h4>
+              </div>
+              {deliveryTimeline.assignment.deliveryBoy?.name && (
+                <p className="text-sm font-bold text-violet-950/60 dark:text-violet-100/65">{deliveryTimeline.assignment.deliveryBoy.name} · {deliveryTimeline.assignment.deliveryBoy.mobileNumber}</p>
+              )}
+            </div>
+            <div className="mt-4 grid gap-2">
+              {deliverySteps.map((step, index) => (
+                <div key={`${step.status}-${step.updatedAt}-${index}`} className="flex items-start gap-3 rounded-xl bg-white p-3 dark:bg-stone-950/70">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-meadow" />
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-black text-ink dark:text-white">{deliveryLabels[step.status] || step.status}</p>
+                    <p className="mt-1 text-xs font-semibold text-violet-950/55 dark:text-violet-100/50">{formatDateTime(step.updatedAt)}{step.remarks ? ` · ${step.remarks}` : ""}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );

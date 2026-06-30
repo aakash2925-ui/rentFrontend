@@ -9,18 +9,44 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const clearSession = () => {
+    localStorage.removeItem("rent_token");
+    localStorage.removeItem("rent_user");
+    setUser(null);
+  };
+
+  const persistSession = (nextUser) => {
+    localStorage.setItem("rent_user", JSON.stringify(nextUser));
+    setUser(nextUser);
+  };
+
   useEffect(() => {
     const token = localStorage.getItem("rent_token");
+    if (!token) {
+      clearSession();
+      setLoading(false);
+      return;
+    }
+
     const storedUser = localStorage.getItem("rent_user");
-    if (token && storedUser) setUser(JSON.parse(storedUser));
-    setLoading(false);
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch {
+        localStorage.removeItem("rent_user");
+      }
+    }
+
+    api.get("/auth/profile")
+      .then(({ data }) => persistSession(data.user))
+      .catch(() => clearSession())
+      .finally(() => setLoading(false));
   }, []);
 
   const login = async (payload) => {
     const { data } = await api.post("/auth/login", payload);
     localStorage.setItem("rent_token", data.token);
-    localStorage.setItem("rent_user", JSON.stringify(data.user));
-    setUser(data.user);
+    persistSession(data.user);
     return data.user;
   };
 
@@ -32,28 +58,23 @@ export function AuthProvider({ children }) {
     }
     const { data } = await api.post("/auth/google", { credential, sessionId });
     localStorage.setItem("rent_token", data.token);
-    localStorage.setItem("rent_user", JSON.stringify(data.user));
-    setUser(data.user);
+    persistSession(data.user);
     return data.user;
   };
 
   const register = async (payload) => {
     const { data } = await api.post("/auth/register", payload);
     localStorage.setItem("rent_token", data.token);
-    localStorage.setItem("rent_user", JSON.stringify(data.user));
-    setUser(data.user);
+    persistSession(data.user);
     return data.user;
   };
 
   const logout = () => {
-    localStorage.removeItem("rent_token");
-    localStorage.removeItem("rent_user");
-    setUser(null);
+    clearSession();
   };
 
   const updateUser = (nextUser) => {
-    localStorage.setItem("rent_user", JSON.stringify(nextUser));
-    setUser(nextUser);
+    persistSession(nextUser);
   };
 
   const value = useMemo(() => ({ user, loading, login, googleLogin, register, logout, updateUser }), [user, loading]);

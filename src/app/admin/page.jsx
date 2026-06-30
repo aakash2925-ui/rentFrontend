@@ -14,7 +14,6 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 import { useToast } from "@/context/ToastContext";
 import { useAuth } from "@/context/AuthContext";
-import { statusTone } from "@/lib/rentalStatus";
 
 const adminTasks = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -22,6 +21,7 @@ const adminTasks = [
   { id: "items", label: "Items", icon: Boxes },
   { id: "vouchers", label: "Vouchers", icon: TicketPercent },
   { id: "bookings", label: "Booking Requests", icon: Package },
+  { id: "delivery", label: "Delivery", icon: Truck },
   { id: "contacts", label: "Contact Inquiries", icon: Mail },
   { id: "activity", label: "Activity Logs", icon: History },
   { id: "users", label: "Users", icon: Users }
@@ -61,6 +61,40 @@ const bookingStatusLabel = (status) => ({
 
 const orderTimelineLabel = (status) => orderTimelineOptions.find(([value]) => value === status)?.[1] || "Order Received";
 
+const deliveryStatusLabels = {
+  assigned: "Assigned",
+  pickup_started: "Pickup Started",
+  picked_up: "Picked Up",
+  out_for_delivery: "Out for Delivery",
+  delivered: "Delivered",
+  return_pickup_assigned: "Return Pickup Assigned",
+  return_pickup_started: "Return Pickup Started",
+  returned_picked_back: "Returned / Picked Back",
+  failed_delivery: "Failed Delivery",
+  cancelled: "Cancelled"
+};
+
+const deliveryStatusClass = (status) => {
+  if (["delivered", "returned_picked_back"].includes(status)) return "border-green-200 bg-green-50 text-green-700";
+  if (["failed_delivery", "cancelled"].includes(status)) return "border-red-200 bg-red-50 text-red-700";
+  if (["out_for_delivery", "pickup_started", "return_pickup_started"].includes(status)) return "border-blue-200 bg-blue-50 text-blue-700";
+  return "border-amber-200 bg-amber-50 text-amber-700";
+};
+
+const deliveryStatusDotClass = (status) => {
+  if (["delivered", "returned_picked_back"].includes(status)) return "bg-green-600";
+  if (["failed_delivery", "cancelled"].includes(status)) return "bg-red-600";
+  if (["out_for_delivery", "pickup_started", "return_pickup_started"].includes(status)) return "bg-blue-600";
+  return "bg-amber-500";
+};
+
+const kycBadge = (status = "not_submitted") => {
+  if (status === "approved") return null;
+  if (status === "rejected") return { label: "KYC rejected", className: "border-red-200 bg-red-50 text-red-700" };
+  if (["pending", "otp_pending"].includes(status)) return { label: "KYC pending", className: "border-amber-200 bg-amber-50 text-amber-700" };
+  return { label: "KYC needed", className: "border-red-200 bg-red-50 text-red-700" };
+};
+
 const canSelectOrderTimeline = (currentStatus, nextStatus) => {
   const currentIndex = orderTimelineOptions.findIndex(([value]) => value === (currentStatus || "order_received"));
   const nextIndex = orderTimelineOptions.findIndex(([value]) => value === nextStatus);
@@ -81,10 +115,24 @@ const emptyVoucherForm = {
   isActive: true
 };
 
+const emptyDeliveryForm = {
+  name: "",
+  mobileNumber: "",
+  email: "",
+  password: "",
+  address: "",
+  city: "",
+  area: "",
+  pincode: "",
+  availabilityStatus: "available",
+  isActive: true,
+  joiningDate: ""
+};
+
 export default function AdminDashboardPage() {
   const { user, logout } = useAuth();
   const router = useRouter();
-  const [data, setData] = useState({ stats: null, users: [], properties: [], bookings: [], contacts: [], logs: [], itemTypes: [], vouchers: [] });
+  const [data, setData] = useState({ stats: null, users: [], properties: [], bookings: [], contacts: [], logs: [], itemTypes: [], vouchers: [], deliveryBoys: [], deliveryAssignments: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [typeName, setTypeName] = useState("");
@@ -102,6 +150,9 @@ export default function AdminDashboardPage() {
   const [bookingPagination, setBookingPagination] = useState({ page: 1, limit: 6, total: 0, totalPages: 1 });
   const [voucherForm, setVoucherForm] = useState(emptyVoucherForm);
   const [editingVoucher, setEditingVoucher] = useState(null);
+  const [deliveryForm, setDeliveryForm] = useState(emptyDeliveryForm);
+  const [editingDeliveryBoy, setEditingDeliveryBoy] = useState(null);
+  const [deliveryFiles, setDeliveryFiles] = useState({ profilePhoto: null, idProof: null });
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -113,9 +164,11 @@ export default function AdminDashboardPage() {
       api.get("/contact?limit=50"),
       api.get("/admin/activity-logs", { params: { page: 1, limit: 10 } }),
       api.get("/item-types"),
-      api.get("/vouchers")
+      api.get("/vouchers"),
+      api.get("/delivery/boys"),
+      api.get("/delivery/assignments")
     ])
-      .then(([stats, users, properties, bookings, contacts, logs, itemTypes, vouchers]) => {
+      .then(([stats, users, properties, bookings, contacts, logs, itemTypes, vouchers, deliveryBoys, deliveryAssignments]) => {
         setData({
           stats: stats.data.stats,
           users: users.data.users,
@@ -124,7 +177,9 @@ export default function AdminDashboardPage() {
           contacts: contacts.data.contacts,
           logs: logs.data.logs,
           itemTypes: itemTypes.data.itemTypes,
-          vouchers: vouchers.data.vouchers
+          vouchers: vouchers.data.vouchers,
+          deliveryBoys: deliveryBoys.data.deliveryBoys,
+          deliveryAssignments: deliveryAssignments.data.assignments
         });
         setLogPagination(logs.data.pagination || { page: 1, limit: 10, total: logs.data.logs.length, totalPages: 1 });
         setBookingPagination(bookings.data.pagination || { page: 1, limit: 6, total: bookings.data.bookings.length, totalPages: 1 });
@@ -262,6 +317,79 @@ export default function AdminDashboardPage() {
       showToast("Voucher deleted");
     } catch (err) {
       showToast(err.response?.data?.message || "Unable to delete voucher", "error");
+    }
+  };
+
+  const loadDeliveryData = async () => {
+    const [{ data: boys }, { data: assignments }] = await Promise.all([
+      api.get("/delivery/boys"),
+      api.get("/delivery/assignments")
+    ]);
+    setData((current) => ({ ...current, deliveryBoys: boys.deliveryBoys, deliveryAssignments: assignments.assignments }));
+  };
+
+  const resetDeliveryForm = () => {
+    setDeliveryForm(emptyDeliveryForm);
+    setEditingDeliveryBoy(null);
+    setDeliveryFiles({ profilePhoto: null, idProof: null });
+  };
+
+  const startEditDeliveryBoy = (boy) => {
+    setEditingDeliveryBoy(boy);
+    setDeliveryForm({
+      name: boy.name || "",
+      mobileNumber: boy.mobileNumber || "",
+      email: boy.email || "",
+      password: "",
+      address: boy.address || "",
+      city: boy.city || "",
+      area: boy.area || "",
+      pincode: boy.pincode || "",
+      availabilityStatus: boy.availabilityStatus || "available",
+      isActive: boy.isActive !== false,
+      joiningDate: boy.joiningDate ? boy.joiningDate.slice(0, 10) : ""
+    });
+    setDeliveryFiles({ profilePhoto: null, idProof: null });
+  };
+
+  const saveDeliveryBoy = async (event) => {
+    event.preventDefault();
+    try {
+      const formData = new FormData();
+      Object.entries(deliveryForm).forEach(([key, value]) => {
+        if (key !== "password" || value || !editingDeliveryBoy) formData.append(key, value);
+      });
+      if (deliveryFiles.profilePhoto) formData.append("profilePhoto", deliveryFiles.profilePhoto);
+      if (deliveryFiles.idProof) formData.append("idProof", deliveryFiles.idProof);
+      const request = editingDeliveryBoy ? api.put(`/delivery/boys/${editingDeliveryBoy._id}`, formData) : api.post("/delivery/boys", formData);
+      await request;
+      await loadDeliveryData();
+      resetDeliveryForm();
+      showToast(editingDeliveryBoy ? "Delivery profile updated" : "Delivery profile created");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to save delivery profile", "error");
+    }
+  };
+
+  const deleteDeliveryBoy = async (id) => {
+    if (!window.confirm("Delete this delivery boy profile?")) return;
+    try {
+      await api.delete(`/delivery/boys/${id}`);
+      await loadDeliveryData();
+      showToast("Delivery profile deleted");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to delete delivery profile", "error");
+    }
+  };
+
+  const assignDeliveryBoy = async (bookingId, deliveryBoyId) => {
+    if (!deliveryBoyId) return;
+    try {
+      await api.post("/delivery/assign", { bookingId, deliveryBoyId });
+      await loadDeliveryData();
+      showToast("Delivery boy assigned");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to assign delivery boy", "error");
     }
   };
 
@@ -457,6 +585,15 @@ export default function AdminDashboardPage() {
     URL.revokeObjectURL(url);
   };
 
+  useEffect(() => {
+    if (!["bookings", "delivery"].includes(activeTask)) return undefined;
+    const timer = setInterval(() => {
+      loadDeliveryData().catch(() => {});
+      if (activeTask === "bookings") loadBookings({ page: bookingPagination.page }).catch(() => {});
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [activeTask, bookingPagination.page, loadBookings]);
+
   return (
     <ProtectedRoute roles={["admin"]}>
       <DashboardLayout title="Admin dashboard">
@@ -505,7 +642,8 @@ export default function AdminDashboardPage() {
               )}
               {activeTask === "items" && <ItemsPanel items={data.properties} filters={filters} setFilters={setFilters} deleteItem={deleteItem} exportCsv={exportCsv} />}
               {activeTask === "vouchers" && <VouchersPanel vouchers={data.vouchers} voucherForm={voucherForm} setVoucherForm={setVoucherForm} editingVoucher={editingVoucher} saveVoucher={saveVoucher} startEditVoucher={startEditVoucher} resetVoucherForm={resetVoucherForm} deleteVoucher={deleteVoucher} exportCsv={exportCsv} />}
-              {activeTask === "bookings" && <BookingsPanel bookings={data.bookings} pagination={bookingPagination} filters={filters} setFilters={setFilters} loadBookings={loadBookings} updateBookingStatus={updateBookingStatus} updateOrderStatus={updateOrderStatus} updatePaymentStatus={updatePaymentStatus} exportCsv={exportCsv} />}
+              {activeTask === "bookings" && <BookingsPanel bookings={data.bookings} deliveryBoys={data.deliveryBoys} deliveryAssignments={data.deliveryAssignments} pagination={bookingPagination} filters={filters} setFilters={setFilters} loadBookings={loadBookings} assignDeliveryBoy={assignDeliveryBoy} updateBookingStatus={updateBookingStatus} updateOrderStatus={updateOrderStatus} updatePaymentStatus={updatePaymentStatus} exportCsv={exportCsv} />}
+              {activeTask === "delivery" && <DeliveryPanel deliveryBoys={data.deliveryBoys} assignments={data.deliveryAssignments} filters={filters} setFilters={setFilters} deliveryForm={deliveryForm} setDeliveryForm={setDeliveryForm} deliveryFiles={deliveryFiles} setDeliveryFiles={setDeliveryFiles} editingDeliveryBoy={editingDeliveryBoy} saveDeliveryBoy={saveDeliveryBoy} resetDeliveryForm={resetDeliveryForm} startEditDeliveryBoy={startEditDeliveryBoy} deleteDeliveryBoy={deleteDeliveryBoy} exportCsv={exportCsv} />}
               {activeTask === "contacts" && <ContactsPanel contacts={data.contacts} filters={filters} setFilters={setFilters} updateContactStatus={updateContactStatus} deleteContact={deleteContact} exportCsv={exportCsv} />}
               {activeTask === "activity" && <ActivityPanel logs={data.logs} pagination={logPagination} filters={filters} setFilters={setFilters} loadActivityLogs={loadActivityLogs} exportCsv={exportCsv} />}
               {activeTask === "users" && <UsersPanel users={data.users} filters={filters} setFilters={setFilters} updateUserRole={updateUserRole} updateUserKycStatus={updateUserKycStatus} deleteUserKyc={deleteUserKyc} exportCsv={exportCsv} />}
@@ -913,7 +1051,155 @@ function VouchersPanel({ vouchers, voucherForm, setVoucherForm, editingVoucher, 
   );
 }
 
-function BookingsPanel({ bookings, pagination, filters, setFilters, loadBookings, updateBookingStatus, updateOrderStatus, updatePaymentStatus, exportCsv }) {
+function DeliveryPanel({ deliveryBoys, assignments, filters, setFilters, deliveryForm, setDeliveryForm, deliveryFiles, setDeliveryFiles, editingDeliveryBoy, saveDeliveryBoy, resetDeliveryForm, startEditDeliveryBoy, deleteDeliveryBoy, exportCsv }) {
+  const updateForm = (key, value) => setDeliveryForm((current) => ({ ...current, [key]: value }));
+  const filteredBoys = deliveryBoys.filter((boy) => {
+    const q = filters.search.toLowerCase();
+    const text = `${boy.name} ${boy.email} ${boy.mobileNumber} ${boy.city} ${boy.area} ${boy.pincode}`.toLowerCase();
+    const activeMatch = !filters.status || (filters.status === "active" ? boy.isActive : !boy.isActive);
+    const areaMatch = !filters.type || `${boy.city} ${boy.area} ${boy.pincode}`.toLowerCase().includes(filters.type.toLowerCase());
+    return (!q || text.includes(q)) && activeMatch && areaMatch;
+  });
+  const available = deliveryBoys.filter((boy) => boy.availabilityStatus === "available" && boy.isActive).length;
+  const busy = deliveryBoys.filter((boy) => boy.availabilityStatus === "busy").length;
+
+  return (
+    <section className="space-y-5">
+      <div className="grid gap-4 md:grid-cols-3">
+        <AnalyticsCard icon={Truck} label="Delivery Boys" value={deliveryBoys.length} hint={`${available} available`} />
+        <AnalyticsCard icon={PackageCheck} label="Assigned Orders" value={assignments.length} hint={`${busy} busy`} />
+        <AnalyticsCard icon={CalendarCheck} label="Active Profiles" value={deliveryBoys.filter((boy) => boy.isActive).length} hint="Ready for assignment" />
+      </div>
+
+      <div className="rounded-2xl border border-violet-100 bg-white p-5 shadow-sm dark:border-violet-900/70 dark:bg-stone-950/70">
+        <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+          <div>
+            <h2 className="text-xl font-black text-ink dark:text-white">{editingDeliveryBoy ? "Edit delivery boy" : "Create delivery boy"}</h2>
+            <p className="mt-1 text-sm text-stone-500">Add courier profiles with login access, service area, documents, and availability.</p>
+          </div>
+          {editingDeliveryBoy && <button className="btn-secondary" type="button" onClick={resetDeliveryForm}><X className="h-4 w-4" /> Cancel edit</button>}
+        </div>
+        <form onSubmit={saveDeliveryBoy} className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <input className="field" placeholder="Name" required value={deliveryForm.name} onChange={(event) => updateForm("name", event.target.value)} />
+          <input className="field" placeholder="Mobile number" required value={deliveryForm.mobileNumber} onChange={(event) => updateForm("mobileNumber", event.target.value)} />
+          <input className="field" type="email" placeholder="Email" required value={deliveryForm.email} onChange={(event) => updateForm("email", event.target.value)} />
+          <input className="field" type="password" placeholder={editingDeliveryBoy ? "New password optional" : "Login password"} required={!editingDeliveryBoy} value={deliveryForm.password} onChange={(event) => updateForm("password", event.target.value)} />
+          <input className="field md:col-span-2" placeholder="Address" required value={deliveryForm.address} onChange={(event) => updateForm("address", event.target.value)} />
+          <input className="field" placeholder="City" required value={deliveryForm.city} onChange={(event) => updateForm("city", event.target.value)} />
+          <input className="field" placeholder="Area" required value={deliveryForm.area} onChange={(event) => updateForm("area", event.target.value)} />
+          <input className="field" placeholder="Pincode" required value={deliveryForm.pincode} onChange={(event) => updateForm("pincode", event.target.value)} />
+          <select className="field" value={deliveryForm.availabilityStatus} onChange={(event) => updateForm("availabilityStatus", event.target.value)}>
+            <option value="available">Available</option>
+            <option value="busy">Busy</option>
+            <option value="offline">Offline</option>
+          </select>
+          <input className="field" type="date" value={deliveryForm.joiningDate} onChange={(event) => updateForm("joiningDate", event.target.value)} />
+          <label className="flex items-center gap-3 rounded-xl border border-violet-100 bg-mist/70 px-4 py-3 text-sm font-black dark:border-violet-900/70 dark:bg-white/10">
+            <input className="h-4 w-4 accent-meadow" type="checkbox" checked={deliveryForm.isActive} onChange={(event) => updateForm("isActive", event.target.checked)} />
+            Active profile
+          </label>
+          <label className="field cursor-pointer">
+            <span className="text-sm">{deliveryFiles.profilePhoto ? deliveryFiles.profilePhoto.name : "Upload profile photo"}</span>
+            <input className="hidden" type="file" accept="image/*" onChange={(event) => setDeliveryFiles((current) => ({ ...current, profilePhoto: event.target.files?.[0] || null }))} />
+          </label>
+          <label className="field cursor-pointer">
+            <span className="text-sm">{deliveryFiles.idProof ? deliveryFiles.idProof.name : "Upload ID proof"}</span>
+            <input className="hidden" type="file" accept="image/*,application/pdf" onChange={(event) => setDeliveryFiles((current) => ({ ...current, idProof: event.target.files?.[0] || null }))} />
+          </label>
+          <div className="flex gap-2 xl:col-span-4 xl:justify-end">
+            <button className="btn-primary" type="submit"><Save className="h-4 w-4" /> {editingDeliveryBoy ? "Update profile" : "Create profile"}</button>
+          </div>
+        </form>
+      </div>
+
+      <div className="rounded-2xl border border-violet-100 bg-white p-5 shadow-sm dark:border-violet-900/70 dark:bg-stone-950/70">
+        <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+          <div>
+            <h2 className="text-xl font-black">Delivery boys</h2>
+            <p className="mt-1 text-sm text-stone-500">Filter by status, service area, or assigned orders.</p>
+          </div>
+          <button className="btn-secondary" type="button" onClick={() => exportCsv("delivery-boys.csv", filteredBoys.map((boy) => ({ name: boy.name, email: boy.email, mobile: boy.mobileNumber, city: boy.city, area: boy.area, pincode: boy.pincode, availability: boy.availabilityStatus, active: boy.isActive, assignedOrders: boy.assignedOrders })))}>
+            Export CSV
+          </button>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <input className="field" placeholder="Search delivery boy" value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} />
+          <select className="field" value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
+            <option value="">All profiles</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <input className="field" placeholder="City, area, or pincode" value={filters.type} onChange={(event) => setFilters((current) => ({ ...current, type: event.target.value }))} />
+        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          {filteredBoys.map((boy) => (
+            <article key={boy._id} className="rounded-2xl border border-violet-100 bg-mist/70 p-4 dark:border-violet-900/70 dark:bg-white/10">
+              <div className="flex gap-4">
+                <img src={uploadUrl(boy.profilePhoto)} alt={boy.name} className="h-20 w-20 rounded-2xl object-cover" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="break-words text-lg font-black text-ink dark:text-white">{boy.name}</h3>
+                    <span className={`rounded-full px-3 py-1 text-xs font-black ${boy.isActive ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{boy.isActive ? "Active" : "Inactive"}</span>
+                    <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-black text-violet-700 dark:bg-violet-950/70 dark:text-violet-100">{boy.availabilityStatus}</span>
+                  </div>
+                  <p className="mt-1 break-words text-sm font-semibold text-violet-950/60 dark:text-violet-100/65">{boy.email} · {boy.mobileNumber}</p>
+                  <p className="mt-1 break-words text-sm text-violet-950/60 dark:text-violet-100/65">{boy.area}, {boy.city} - {boy.pincode}</p>
+                  <p className="mt-2 text-sm font-black text-meadow">{boy.assignedOrders || 0} active assigned order(s)</p>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button className="btn-secondary" type="button" onClick={() => startEditDeliveryBoy(boy)}><Pencil className="h-4 w-4" /> Edit</button>
+                {boy.idProof && <a className="btn-secondary" href={uploadUrl(boy.idProof)} target="_blank" rel="noreferrer">View ID</a>}
+                <button className="btn-secondary text-red-600" type="button" onClick={() => deleteDeliveryBoy(boy._id)}><Trash2 className="h-4 w-4" /> Delete</button>
+              </div>
+            </article>
+          ))}
+          {!filteredBoys.length && <EmptyState title="No delivery boys found" message="Create a delivery profile to assign orders." />}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-violet-100 bg-white p-5 shadow-sm dark:border-violet-900/70 dark:bg-stone-950/70">
+        <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+          <div>
+            <h2 className="text-xl font-black">Assigned orders</h2>
+            <p className="mt-1 text-sm text-stone-500">Review delivery timeline, assigned partner, customer, and proof status.</p>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3">
+          {assignments.slice(0, 8).map((assignment) => {
+            const booking = assignment.booking || {};
+            const proofCount = [assignment.proof?.customerSignature, assignment.proof?.handoverPhoto, ...(assignment.proof?.returnPhotos || [])].filter(Boolean).length;
+            return (
+              <article key={assignment._id} className="rounded-2xl border border-violet-100 bg-mist/70 p-4 dark:border-violet-900/70 dark:bg-white/10">
+                <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-violet-700 px-3 py-1 text-xs font-black text-white">#{String(booking._id).slice(-8)}</span>
+                      <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black ${deliveryStatusClass(assignment.status)}`}>
+                        <span className={`h-2 w-2 rounded-full ${deliveryStatusDotClass(assignment.status)}`} />
+                        {deliveryStatusLabels[assignment.status] || assignment.status}
+                      </span>
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-violet-700 dark:bg-stone-950 dark:text-violet-100">{proofCount} proof file(s)</span>
+                    </div>
+                    <h3 className="mt-2 break-words text-base font-black text-ink dark:text-white">{booking.property?.title || "Rental item"}</h3>
+                    <p className="mt-1 text-sm font-semibold text-violet-950/60 dark:text-violet-100/65">{booking.user?.name || "Customer"} · {booking.user?.phone || "No mobile"}</p>
+                    <p className="mt-1 text-sm font-semibold text-violet-950/60 dark:text-violet-100/65">Delivery: {assignment.deliveryBoy?.name || "Not assigned"} · {assignment.deliveryBoy?.mobileNumber || "-"}</p>
+                  </div>
+                  <div className="text-sm font-bold text-violet-950/55 dark:text-violet-100/55">
+                    Updated {formatDate(assignment.updatedAt)}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+          {!assignments.length && <EmptyState title="No assigned deliveries" message="Assign a delivery boy from the Booking Requests panel." />}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function BookingsPanel({ bookings, deliveryBoys, deliveryAssignments, pagination, filters, setFilters, loadBookings, assignDeliveryBoy, updateBookingStatus, updateOrderStatus, updatePaymentStatus, exportCsv }) {
   const currentPage = pagination.page || 1;
   const totalPages = pagination.totalPages || 1;
   const totalBookings = pagination.total || 0;
@@ -958,6 +1244,8 @@ function BookingsPanel({ bookings, pagination, filters, setFilters, loadBookings
         {bookings.length ? bookings.map((booking) => {
           const amount = Number(booking.finalAmount || booking.totalAmount || 0);
           const deliveryTime = booking.deliveryEta || (booking.deliverySpeed === "fast" ? "Within 2 hours" : "Within 24 hours");
+          const assignment = deliveryAssignments.find((item) => String(item.booking?._id || item.booking) === String(booking._id));
+          const customerKyc = kycBadge(booking.user?.kyc?.status);
           return (
             <article key={booking._id} className="overflow-hidden rounded-2xl border border-violet-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-soft dark:border-violet-900/70 dark:bg-stone-950/80">
               <div className="border-b border-violet-100 bg-gradient-to-r from-violet-50 via-white to-lavender/40 p-4 dark:border-violet-900/70 dark:from-violet-950/50 dark:via-stone-950 dark:to-violet-950/30">
@@ -966,6 +1254,7 @@ function BookingsPanel({ bookings, pagination, filters, setFilters, loadBookings
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-violet-700 px-3 py-1 text-xs font-black text-white">#{String(booking._id).slice(-8)}</span>
                       <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-violet-700 shadow-sm dark:bg-stone-900 dark:text-violet-100">{booking.paymentStatus || "pending"}</span>
+                      {customerKyc && <span className={`rounded-full border px-3 py-1 text-xs font-black ${customerKyc.className}`}>{customerKyc.label}</span>}
                     </div>
                     <h3 className="mt-3 break-words text-lg font-black text-ink dark:text-white">{booking.property?.title || "Rental item"}</h3>
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-violet-950/60 dark:text-violet-100/65">
@@ -995,37 +1284,37 @@ function BookingsPanel({ bookings, pagination, filters, setFilters, loadBookings
                     </div>
                   </div>
                 </div>
-                <div className="mt-4 rounded-2xl border border-violet-100 bg-mist/70 p-3 dark:border-violet-900/70 dark:bg-white/10">
-                  <p className="mb-3 text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">Manage booking</p>
-                  <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_1fr_auto_auto] lg:items-center">
-                  <label className="grid gap-1 text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">
-                    Order timeline
-                    <select className="field" value={booking.orderStatus || "order_received"} onChange={(event) => updateOrderStatus(booking._id, event.target.value)}>
+                <div className="mt-4 rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50/80 via-white to-fuchsia-50/70 p-4 shadow-sm dark:border-violet-900/70 dark:from-violet-950/40 dark:via-stone-950 dark:to-fuchsia-950/20">
+                  <div className="mb-4 flex flex-col justify-between gap-1 sm:flex-row sm:items-center">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">Manage booking</p>
+                      <p className="mt-1 text-sm font-semibold text-violet-950/60 dark:text-violet-100/60">Update order, payment, and delivery assignment from one place.</p>
+                    </div>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <ControlSelect label="Order timeline" value={booking.orderStatus || "order_received"} onChange={(value) => updateOrderStatus(booking._id, value)}>
                       {orderTimelineOptions.map(([value, label]) => (
                         <option key={value} value={value} disabled={!canSelectOrderTimeline(booking.orderStatus, value)}>
                           {label}
                         </option>
                       ))}
-                    </select>
-                  </label>
-                  <label className="grid gap-1 text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">
-                    Booking status
-                    <select className="field" value={booking.status} onChange={(event) => updateBookingStatus(booking._id, event.target.value)}>
+                    </ControlSelect>
+                    <ControlSelect label="Booking status" value={booking.status} onChange={(value) => updateBookingStatus(booking._id, value)}>
                       {bookingStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                    </select>
-                  </label>
-                  <label className="grid gap-1 text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">
-                    Payment
-                    <select className="field" value={booking.paymentStatus} onChange={(event) => updatePaymentStatus(booking._id, event.target.value)}>
-                      <option value="pending">payment pending</option>
-                      <option value="paid">paid</option>
-                      <option value="failed">failed</option>
-                      <option value="cancelled">cancelled</option>
-                      <option value="refunded">refunded</option>
-                    </select>
-                  </label>
-                    <button className="btn-primary lg:mt-5" type="button" onClick={() => updateBookingStatus(booking._id, "rented")}>Approve</button>
-                    <button className="btn-secondary lg:mt-5" type="button" onClick={() => updateBookingStatus(booking._id, "closed")}>Reject</button>
+                    </ControlSelect>
+                    <ControlSelect label="Payment" value={booking.paymentStatus} onChange={(value) => updatePaymentStatus(booking._id, value)}>
+                      <option value="pending">Payment pending</option>
+                      <option value="paid">Paid</option>
+                      <option value="failed">Failed</option>
+                      <option value="cancelled">Cancelled</option>
+                      <option value="refunded">Refunded</option>
+                    </ControlSelect>
+                    <ControlSelect label="Delivery boy" value={assignment?.deliveryBoy?._id || ""} onChange={(value) => assignDeliveryBoy(booking._id, value)}>
+                      <option value="">Assign delivery</option>
+                      {deliveryBoys.filter((boy) => boy.isActive && boy.availabilityStatus !== "offline").map((boy) => (
+                        <option key={boy._id} value={boy._id}>{boy.name} · {boy.area}</option>
+                      ))}
+                    </ControlSelect>
                   </div>
                 </div>
               </div>
@@ -1058,6 +1347,21 @@ function InfoTile({ icon: Icon, label, value }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function ControlSelect({ label, value, onChange, children }) {
+  return (
+    <label className="group grid gap-2 rounded-2xl border border-violet-100 bg-white p-3 shadow-sm transition focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-200/70 hover:-translate-y-0.5 hover:shadow-soft dark:border-violet-900/70 dark:bg-stone-950/80 dark:focus-within:ring-violet-900/60">
+      <span className="text-xs font-black uppercase tracking-wide text-violet-950/45 transition group-focus-within:text-violet-700 dark:text-violet-100/45 dark:group-focus-within:text-violet-100">{label}</span>
+      <select
+        className="w-full rounded-xl border border-violet-100 bg-mist/70 px-3 py-2.5 text-sm font-black text-ink outline-none transition focus:border-violet-400 dark:border-violet-900/70 dark:bg-white/10 dark:text-white"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        {children}
+      </select>
+    </label>
   );
 }
 
