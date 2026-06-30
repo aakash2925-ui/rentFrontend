@@ -5,7 +5,7 @@ import { ToastProvider } from "@/context/ToastContext";
 import { CartProvider } from "@/context/CartContext";
 import Footer from "@/components/layout/Footer";
 import Navbar from "@/components/layout/Navbar";
-import { siteDescription, siteLogo, siteName, siteUrl, socialProfiles } from "@/lib/siteMetadata";
+import { siteDescription, siteKeywords, siteLogo, siteName, siteUrl, socialProfiles } from "@/lib/siteMetadata";
 
 export const metadata = {
   metadataBase: new URL(siteUrl),
@@ -15,10 +15,22 @@ export const metadata = {
     template: `%s | ${siteName}`
   },
   description: siteDescription,
-  keywords: ["Zasoota", "rental platform", "projector rental", "speaker rental", "camera rental", "event gear rental"],
+  keywords: siteKeywords,
   authors: [{ name: siteName, url: siteUrl }],
   creator: siteName,
   publisher: siteName,
+  category: "shopping",
+  appleWebApp: {
+    title: siteName,
+    capable: true,
+    statusBarStyle: "black-translucent"
+  },
+  other: {
+    "application-name": siteName,
+    "apple-mobile-web-app-title": siteName,
+    "msapplication-TileImage": "/zasoota-logo.svg",
+    "msapplication-TileColor": "#573875"
+  },
   alternates: {
     canonical: "/"
   },

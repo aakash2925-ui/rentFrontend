@@ -148,6 +148,7 @@ export default function AdminDashboardPage() {
   const [filters, setFilters] = useState({ search: "", status: "", type: "", role: "", dateFrom: "", dateTo: "" });
   const [logPagination, setLogPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
   const [bookingPagination, setBookingPagination] = useState({ page: 1, limit: 6, total: 0, totalPages: 1 });
+  const [userPagination, setUserPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
   const [voucherForm, setVoucherForm] = useState(emptyVoucherForm);
   const [editingVoucher, setEditingVoucher] = useState(null);
   const [deliveryForm, setDeliveryForm] = useState(emptyDeliveryForm);
@@ -158,7 +159,7 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     Promise.all([
       api.get("/admin/stats"),
-      api.get("/admin/users"),
+      api.get("/admin/users", { params: { page: 1, limit: 10 } }),
       api.get("/admin/properties"),
       api.get("/bookings", { params: { page: 1, limit: 6 } }),
       api.get("/contact?limit=50"),
@@ -183,6 +184,7 @@ export default function AdminDashboardPage() {
         });
         setLogPagination(logs.data.pagination || { page: 1, limit: 10, total: logs.data.logs.length, totalPages: 1 });
         setBookingPagination(bookings.data.pagination || { page: 1, limit: 6, total: bookings.data.bookings.length, totalPages: 1 });
+        setUserPagination(users.data.pagination || { page: 1, limit: 10, total: users.data.users.length, totalPages: 1 });
       })
       .catch(() => setError("Unable to load admin dashboard"))
       .finally(() => setLoading(false));
@@ -446,6 +448,20 @@ export default function AdminDashboardPage() {
     return response;
   }, [bookingPagination.limit, filters]);
 
+  const loadUsers = useCallback(async ({ page = 1, nextFilters = filters } = {}) => {
+    const { data: response } = await api.get("/admin/users", {
+      params: {
+        page,
+        limit: userPagination.limit,
+        search: nextFilters.search || undefined,
+        role: nextFilters.role || undefined
+      }
+    });
+    setData((current) => ({ ...current, users: response.users }));
+    setUserPagination(response.pagination || { page, limit: userPagination.limit, total: response.users.length, totalPages: 1 });
+    return response;
+  }, [filters, userPagination.limit]);
+
   const updateBookingStatus = async (id, status) => {
     try {
       await api.put(`/bookings/${id}/status`, { status });
@@ -487,11 +503,8 @@ export default function AdminDashboardPage() {
 
   const updateUserRole = async (id, role) => {
     try {
-      const { data: response } = await api.put(`/admin/users/${id}/role`, { role });
-      setData((current) => ({
-        ...current,
-        users: current.users.map((user) => user._id === id ? response.user : user)
-      }));
+      await api.put(`/admin/users/${id}/role`, { role });
+      await loadUsers({ page: userPagination.page });
       showToast("User role updated");
     } catch (err) {
       showToast(err.response?.data?.message || "Unable to update user role", "error");
@@ -501,11 +514,8 @@ export default function AdminDashboardPage() {
   const updateUserKycStatus = async (id, status) => {
     const rejectionReason = status === "rejected" ? window.prompt("Reason for rejection?", "KYC details could not be verified") || "" : "";
     try {
-      const { data: response } = await api.put(`/admin/users/${id}/kyc`, { status, rejectionReason });
-      setData((current) => ({
-        ...current,
-        users: current.users.map((user) => user._id === id ? response.user : user)
-      }));
+      await api.put(`/admin/users/${id}/kyc`, { status, rejectionReason });
+      await loadUsers({ page: userPagination.page });
       showToast(`KYC ${status}`);
     } catch (err) {
       showToast(err.response?.data?.message || "Unable to update KYC", "error");
@@ -515,11 +525,8 @@ export default function AdminDashboardPage() {
   const deleteUserKyc = async (user) => {
     if (!window.confirm(`Delete KYC details for ${user.email}? This will remove document details and the uploaded KYC photo.`)) return;
     try {
-      const { data: response } = await api.delete(`/admin/users/${user._id}/kyc`);
-      setData((current) => ({
-        ...current,
-        users: current.users.map((item) => item._id === user._id ? response.user : item)
-      }));
+      await api.delete(`/admin/users/${user._id}/kyc`);
+      await loadUsers({ page: userPagination.page });
       showToast("KYC deleted");
     } catch (err) {
       showToast(err.response?.data?.message || "Unable to delete KYC", "error");
@@ -646,7 +653,7 @@ export default function AdminDashboardPage() {
               {activeTask === "delivery" && <DeliveryPanel deliveryBoys={data.deliveryBoys} assignments={data.deliveryAssignments} filters={filters} setFilters={setFilters} deliveryForm={deliveryForm} setDeliveryForm={setDeliveryForm} deliveryFiles={deliveryFiles} setDeliveryFiles={setDeliveryFiles} editingDeliveryBoy={editingDeliveryBoy} saveDeliveryBoy={saveDeliveryBoy} resetDeliveryForm={resetDeliveryForm} startEditDeliveryBoy={startEditDeliveryBoy} deleteDeliveryBoy={deleteDeliveryBoy} exportCsv={exportCsv} />}
               {activeTask === "contacts" && <ContactsPanel contacts={data.contacts} filters={filters} setFilters={setFilters} updateContactStatus={updateContactStatus} deleteContact={deleteContact} exportCsv={exportCsv} />}
               {activeTask === "activity" && <ActivityPanel logs={data.logs} pagination={logPagination} filters={filters} setFilters={setFilters} loadActivityLogs={loadActivityLogs} exportCsv={exportCsv} />}
-              {activeTask === "users" && <UsersPanel users={data.users} filters={filters} setFilters={setFilters} updateUserRole={updateUserRole} updateUserKycStatus={updateUserKycStatus} deleteUserKyc={deleteUserKyc} exportCsv={exportCsv} />}
+              {activeTask === "users" && <UsersPanel users={data.users} pagination={userPagination} filters={filters} setFilters={setFilters} loadUsers={loadUsers} updateUserRole={updateUserRole} updateUserKycStatus={updateUserKycStatus} deleteUserKyc={deleteUserKyc} exportCsv={exportCsv} />}
               </section>
             </div>
           </div>
@@ -1524,13 +1531,32 @@ function ActivityPanel({ logs, pagination, filters, setFilters, loadActivityLogs
   );
 }
 
-function UsersPanel({ users, filters, setFilters, updateUserRole, updateUserKycStatus, deleteUserKyc, exportCsv }) {
-  const filteredUsers = users.filter((user) => {
-    const q = filters.search.toLowerCase();
-    return (!q || `${user.name} ${user.email} ${user.phone || ""}`.toLowerCase().includes(q)) && (!filters.role || user.role === filters.role);
-  });
+function UsersPanel({ users, pagination, filters, setFilters, loadUsers, updateUserRole, updateUserKycStatus, deleteUserKyc, exportCsv }) {
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const currentPage = pagination.page || 1;
+  const totalPages = pagination.totalPages || 1;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoadingUsers(true);
+      loadUsers({ page: 1, nextFilters: filters })
+        .catch(() => {})
+        .finally(() => setLoadingUsers(false));
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [filters.search, filters.role, loadUsers]);
+
+  const changePage = async (page) => {
+    setLoadingUsers(true);
+    try {
+      await loadUsers({ page, nextFilters: filters });
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
   const userStats = [
-    { label: "Total Users", value: users.length, icon: Users, tone: "bg-violet-100 text-violet-700 dark:bg-violet-950/70 dark:text-violet-100" },
+    { label: "Total Users", value: pagination.total || users.length, icon: Users, tone: "bg-violet-100 text-violet-700 dark:bg-violet-950/70 dark:text-violet-100" },
     { label: "Admins", value: users.filter((user) => user.role === "admin").length, icon: ShieldCheck, tone: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-100" },
     { label: "KYC Pending", value: users.filter((user) => ["pending", "otp_pending"].includes(user.kyc?.status)).length, icon: CalendarCheck, tone: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-100" },
     { label: "KYC Approved", value: users.filter((user) => user.kyc?.status === "approved").length, icon: PackageCheck, tone: "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-950/50 dark:text-fuchsia-100" }
@@ -1545,7 +1571,7 @@ function UsersPanel({ users, filters, setFilters, updateUserRole, updateUserKycS
             <h2 className="mt-1 text-2xl font-black">User management</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-violet-100/75">Review customer accounts, update roles, approve KYC, and inspect identity photos from one clean workspace.</p>
           </div>
-          <button className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white px-4 py-3 text-sm font-black text-violet-800 shadow-soft transition hover:-translate-y-0.5 hover:shadow-glow" onClick={() => exportCsv("users.csv", filteredUsers.map((user) => ({ name: user.name, email: user.email, phone: user.phone, role: user.role, kyc: user.kyc?.status || "not_submitted" })))}>
+          <button className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white px-4 py-3 text-sm font-black text-violet-800 shadow-soft transition hover:-translate-y-0.5 hover:shadow-glow" onClick={() => exportCsv("users-page.csv", users.map((user) => ({ name: user.name, email: user.email, phone: user.phone, role: user.role, kyc: user.kyc?.status || "not_submitted", lastLogin: user.lastLoginAt || "" })))}>
             Export CSV
           </button>
         </div>
@@ -1578,22 +1604,25 @@ function UsersPanel({ users, filters, setFilters, updateUserRole, updateUserKycS
             <option value="user">Users</option>
             <option value="owner">Owners</option>
             <option value="admin">Admins</option>
+            <option value="delivery">Delivery</option>
           </select>
         </div>
       </div>
 
       <div className="overflow-hidden rounded-[1.35rem] border border-violet-100 bg-white shadow-soft dark:border-violet-900/70 dark:bg-stone-950/70">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] text-left text-sm">
+          <table className="w-full min-w-[960px] text-left text-sm">
             <thead className="bg-violet-50 text-xs uppercase tracking-wide text-violet-950/65 dark:bg-violet-950/60 dark:text-violet-100/70">
               <tr>
-                {["User", "Contact", "Role", "KYC", "Actions"].map((header) => (
-                  <th key={header} className="px-5 py-4 font-black">{header}</th>
-                ))}
+                <th className="px-5 py-4 font-black">User</th>
+                <th className="px-5 py-4 font-black">Contact</th>
+                <th className="w-28 px-3 py-4 font-black">Role</th>
+                <th className="px-5 py-4 font-black">KYC</th>
+                <th className="px-5 py-4 font-black">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.map((user) => {
+              {users.map((user) => {
                 const kycStatus = user.kyc?.status || "not_submitted";
                 const canReviewKyc = ["pending", "otp_pending"].includes(kycStatus);
                 const initials = (user.name || user.email || "U").split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
@@ -1614,13 +1643,17 @@ function UsersPanel({ users, filters, setFilters, updateUserRole, updateUserKycS
                       <div className="grid gap-1 text-violet-950/65 dark:text-violet-100/70">
                         <span className="flex min-w-0 items-center gap-2"><Mail className="h-4 w-4 shrink-0 text-meadow" /><span className="max-w-[260px] break-words">{user.email}</span></span>
                         <span className="flex min-w-0 items-center gap-2"><Phone className="h-4 w-4 shrink-0 text-meadow" /><span className="max-w-[220px] break-words">{user.phone || "-"}</span></span>
+                        <span className="mt-1 text-xs font-black uppercase tracking-wide text-violet-950/40 dark:text-violet-100/40">
+                          Last login: {user.lastLoginAt ? `${formatDate(user.lastLoginAt)} ${formatTime(user.lastLoginAt)}` : "Never"}
+                        </span>
                       </div>
                     </td>
-                    <td className="px-5 py-4">
-                      <select className="field min-w-36" value={user.role} onChange={(event) => updateUserRole(user._id, event.target.value)}>
+                    <td className="w-28 px-3 py-4">
+                      <select className="field !w-28 min-w-0 px-2 text-xs font-black" value={user.role} onChange={(event) => updateUserRole(user._id, event.target.value)}>
                         <option value="user">user</option>
                         <option value="owner">owner</option>
                         <option value="admin">admin</option>
+                        <option value="delivery">delivery</option>
                       </select>
                     </td>
                     <td className="px-5 py-4">
@@ -1665,7 +1698,15 @@ function UsersPanel({ users, filters, setFilters, updateUserRole, updateUserKycS
             </tbody>
           </table>
         </div>
-        {!filteredUsers.length && <div className="p-5"><EmptyState title="No matching users" message="Registered accounts will appear here." /></div>}
+        {loadingUsers && <div className="p-5 text-sm font-black text-violet-700 dark:text-violet-100">Loading users...</div>}
+        {!loadingUsers && !users.length && <div className="p-5"><EmptyState title="No matching users" message="Registered accounts will appear here." /></div>}
+        <div className="flex flex-col justify-between gap-3 border-t border-violet-100 p-4 text-sm font-bold text-violet-950/60 dark:border-violet-900/70 dark:text-violet-100/60 sm:flex-row sm:items-center">
+          <span>Page {currentPage} of {totalPages} · {pagination.total || 0} user(s)</span>
+          <div className="flex gap-2">
+            <button className="btn-secondary" type="button" disabled={loadingUsers || currentPage <= 1} onClick={() => changePage(Math.max(1, currentPage - 1))}>Previous</button>
+            <button className="btn-secondary" type="button" disabled={loadingUsers || currentPage >= totalPages} onClick={() => changePage(Math.min(totalPages, currentPage + 1))}>Next</button>
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -1727,6 +1768,11 @@ function matchesDate(value, filters) {
 function formatDate(value) {
   if (!value) return "-";
   return new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function formatTime(value) {
+  if (!value) return "-";
+  return new Date(value).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
 function AdminTable({ title, headers, rows }) {
