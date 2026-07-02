@@ -8,8 +8,8 @@ export default function HeroSection() {
     <section className="relative isolate overflow-hidden bg-mist dark:bg-[#11071f]">
       <div className="absolute inset-0 -z-10">
         <img
-          src="https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?auto=format&fit=crop&w=1800&q=85"
-          alt="Friends watching movies with projector and speakers"
+          src="/zasoota-home-bg.png"
+          alt="Zasoota rent use return product background"
           className="h-full w-full object-cover opacity-28 dark:opacity-24"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-mist via-mist/92 to-mist/50 dark:from-[#11071f] dark:via-[#11071f]/88 dark:to-[#2b1450]/64" />
