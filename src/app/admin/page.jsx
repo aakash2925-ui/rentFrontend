@@ -95,6 +95,8 @@ const kycBadge = (status = "not_submitted") => {
   return { label: "KYC needed", className: "border-red-200 bg-red-50 text-red-700" };
 };
 
+const needsKycForConfirmation = (booking) => booking.user?.kyc?.status !== "approved" && booking.status !== "rented";
+
 const canSelectOrderTimeline = (currentStatus, nextStatus) => {
   const currentIndex = orderTimelineOptions.findIndex(([value]) => value === (currentStatus || "order_received"));
   const nextIndex = orderTimelineOptions.findIndex(([value]) => value === nextStatus);
@@ -501,16 +503,6 @@ export default function AdminDashboardPage() {
     setMobileOpen(false);
   };
 
-  const updateUserRole = async (id, role) => {
-    try {
-      await api.put(`/admin/users/${id}/role`, { role });
-      await loadUsers({ page: userPagination.page });
-      showToast("User role updated");
-    } catch (err) {
-      showToast(err.response?.data?.message || "Unable to update user role", "error");
-    }
-  };
-
   const updateUserKycStatus = async (id, status) => {
     const rejectionReason = status === "rejected" ? window.prompt("Reason for rejection?", "KYC details could not be verified") || "" : "";
     try {
@@ -544,6 +536,16 @@ export default function AdminDashboardPage() {
       showToast("Payment status updated");
     } catch (err) {
       showToast(err.response?.data?.message || "Unable to update payment status", "error");
+    }
+  };
+
+  const sendKycReminder = async (id) => {
+    try {
+      const { data: response } = await api.post(`/bookings/${id}/kyc-reminder`);
+      showToast(response.message || "KYC reminder sent");
+      await Promise.all([loadActivityLogs(), loadBookings({ page: bookingPagination.page })]);
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to send KYC reminder", "error");
     }
   };
 
@@ -649,11 +651,11 @@ export default function AdminDashboardPage() {
               )}
               {activeTask === "items" && <ItemsPanel items={data.properties} filters={filters} setFilters={setFilters} deleteItem={deleteItem} exportCsv={exportCsv} />}
               {activeTask === "vouchers" && <VouchersPanel vouchers={data.vouchers} voucherForm={voucherForm} setVoucherForm={setVoucherForm} editingVoucher={editingVoucher} saveVoucher={saveVoucher} startEditVoucher={startEditVoucher} resetVoucherForm={resetVoucherForm} deleteVoucher={deleteVoucher} exportCsv={exportCsv} />}
-              {activeTask === "bookings" && <BookingsPanel bookings={data.bookings} deliveryBoys={data.deliveryBoys} deliveryAssignments={data.deliveryAssignments} pagination={bookingPagination} filters={filters} setFilters={setFilters} loadBookings={loadBookings} assignDeliveryBoy={assignDeliveryBoy} updateBookingStatus={updateBookingStatus} updateOrderStatus={updateOrderStatus} updatePaymentStatus={updatePaymentStatus} exportCsv={exportCsv} />}
+              {activeTask === "bookings" && <BookingsPanel bookings={data.bookings} deliveryBoys={data.deliveryBoys} deliveryAssignments={data.deliveryAssignments} pagination={bookingPagination} filters={filters} setFilters={setFilters} loadBookings={loadBookings} assignDeliveryBoy={assignDeliveryBoy} updateBookingStatus={updateBookingStatus} updateOrderStatus={updateOrderStatus} updatePaymentStatus={updatePaymentStatus} sendKycReminder={sendKycReminder} exportCsv={exportCsv} />}
               {activeTask === "delivery" && <DeliveryPanel deliveryBoys={data.deliveryBoys} assignments={data.deliveryAssignments} filters={filters} setFilters={setFilters} deliveryForm={deliveryForm} setDeliveryForm={setDeliveryForm} deliveryFiles={deliveryFiles} setDeliveryFiles={setDeliveryFiles} editingDeliveryBoy={editingDeliveryBoy} saveDeliveryBoy={saveDeliveryBoy} resetDeliveryForm={resetDeliveryForm} startEditDeliveryBoy={startEditDeliveryBoy} deleteDeliveryBoy={deleteDeliveryBoy} exportCsv={exportCsv} />}
               {activeTask === "contacts" && <ContactsPanel contacts={data.contacts} filters={filters} setFilters={setFilters} updateContactStatus={updateContactStatus} deleteContact={deleteContact} exportCsv={exportCsv} />}
               {activeTask === "activity" && <ActivityPanel logs={data.logs} pagination={logPagination} filters={filters} setFilters={setFilters} loadActivityLogs={loadActivityLogs} exportCsv={exportCsv} />}
-              {activeTask === "users" && <UsersPanel users={data.users} pagination={userPagination} filters={filters} setFilters={setFilters} loadUsers={loadUsers} updateUserRole={updateUserRole} updateUserKycStatus={updateUserKycStatus} deleteUserKyc={deleteUserKyc} exportCsv={exportCsv} />}
+              {activeTask === "users" && <UsersPanel users={data.users} pagination={userPagination} filters={filters} setFilters={setFilters} loadUsers={loadUsers} updateUserKycStatus={updateUserKycStatus} deleteUserKyc={deleteUserKyc} exportCsv={exportCsv} />}
               </section>
             </div>
           </div>
@@ -1206,7 +1208,7 @@ function DeliveryPanel({ deliveryBoys, assignments, filters, setFilters, deliver
   );
 }
 
-function BookingsPanel({ bookings, deliveryBoys, deliveryAssignments, pagination, filters, setFilters, loadBookings, assignDeliveryBoy, updateBookingStatus, updateOrderStatus, updatePaymentStatus, exportCsv }) {
+function BookingsPanel({ bookings, deliveryBoys, deliveryAssignments, pagination, filters, setFilters, loadBookings, assignDeliveryBoy, updateBookingStatus, updateOrderStatus, updatePaymentStatus, sendKycReminder, exportCsv }) {
   const currentPage = pagination.page || 1;
   const totalPages = pagination.totalPages || 1;
   const totalBookings = pagination.total || 0;
@@ -1253,6 +1255,7 @@ function BookingsPanel({ bookings, deliveryBoys, deliveryAssignments, pagination
           const deliveryTime = booking.deliveryEta || (booking.deliverySpeed === "fast" ? "Within 2 hours" : "Within 24 hours");
           const assignment = deliveryAssignments.find((item) => String(item.booking?._id || item.booking) === String(booking._id));
           const customerKyc = kycBadge(booking.user?.kyc?.status);
+          const confirmationLocked = needsKycForConfirmation(booking);
           return (
             <article key={booking._id} className="overflow-hidden rounded-2xl border border-violet-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-soft dark:border-violet-900/70 dark:bg-stone-950/80">
               <div className="border-b border-violet-100 bg-gradient-to-r from-violet-50 via-white to-lavender/40 p-4 dark:border-violet-900/70 dark:from-violet-950/50 dark:via-stone-950 dark:to-violet-950/30">
@@ -1261,7 +1264,16 @@ function BookingsPanel({ bookings, deliveryBoys, deliveryAssignments, pagination
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-violet-700 px-3 py-1 text-xs font-black text-white">#{String(booking._id).slice(-8)}</span>
                       <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-violet-700 shadow-sm dark:bg-stone-900 dark:text-violet-100">{booking.paymentStatus || "pending"}</span>
-                      {customerKyc && <span className={`rounded-full border px-3 py-1 text-xs font-black ${customerKyc.className}`}>{customerKyc.label}</span>}
+                      {customerKyc && (
+                        <button
+                          className={`rounded-full border px-3 py-1 text-xs font-black transition hover:-translate-y-0.5 hover:shadow-sm ${customerKyc.className}`}
+                          type="button"
+                          onClick={() => sendKycReminder(booking._id)}
+                          title="Send KYC reminder email"
+                        >
+                          {customerKyc.label}
+                        </button>
+                      )}
                     </div>
                     <h3 className="mt-3 break-words text-lg font-black text-ink dark:text-white">{booking.property?.title || "Rental item"}</h3>
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-violet-950/60 dark:text-violet-100/65">
@@ -1295,23 +1307,27 @@ function BookingsPanel({ bookings, deliveryBoys, deliveryAssignments, pagination
                   <div className="mb-4 flex flex-col justify-between gap-1 sm:flex-row sm:items-center">
                     <div>
                       <p className="text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">Manage booking</p>
-                      <p className="mt-1 text-sm font-semibold text-violet-950/60 dark:text-violet-100/60">Update order, payment, and delivery assignment from one place.</p>
+                      <p className="mt-1 text-sm font-semibold text-violet-950/60 dark:text-violet-100/60">
+                        {confirmationLocked ? "KYC must be completed before this order can be confirmed." : "Update order, payment, and delivery assignment from one place."}
+                      </p>
                     </div>
                   </div>
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <ControlSelect label="Order timeline" value={booking.orderStatus || "order_received"} onChange={(value) => updateOrderStatus(booking._id, value)}>
                       {orderTimelineOptions.map(([value, label]) => (
-                        <option key={value} value={value} disabled={!canSelectOrderTimeline(booking.orderStatus, value)}>
+                        <option key={value} value={value} disabled={!canSelectOrderTimeline(booking.orderStatus, value) || (confirmationLocked && value === "order_confirmed")}>
                           {label}
                         </option>
                       ))}
                     </ControlSelect>
                     <ControlSelect label="Booking status" value={booking.status} onChange={(value) => updateBookingStatus(booking._id, value)}>
-                      {bookingStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      {bookingStatusOptions.map(([value, label]) => (
+                        <option key={value} value={value} disabled={confirmationLocked && value === "rented"}>{label}</option>
+                      ))}
                     </ControlSelect>
                     <ControlSelect label="Payment" value={booking.paymentStatus} onChange={(value) => updatePaymentStatus(booking._id, value)}>
                       <option value="pending">Payment pending</option>
-                      <option value="paid">Paid</option>
+                      <option value="paid" disabled={confirmationLocked}>Paid</option>
                       <option value="failed">Failed</option>
                       <option value="cancelled">Cancelled</option>
                       <option value="refunded">Refunded</option>
@@ -1531,7 +1547,7 @@ function ActivityPanel({ logs, pagination, filters, setFilters, loadActivityLogs
   );
 }
 
-function UsersPanel({ users, pagination, filters, setFilters, loadUsers, updateUserRole, updateUserKycStatus, deleteUserKyc, exportCsv }) {
+function UsersPanel({ users, pagination, filters, setFilters, loadUsers, updateUserKycStatus, deleteUserKyc, exportCsv }) {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const currentPage = pagination.page || 1;
   const totalPages = pagination.totalPages || 1;
@@ -1569,7 +1585,7 @@ function UsersPanel({ users, pagination, filters, setFilters, loadUsers, updateU
           <div>
             <p className="text-sm font-bold uppercase tracking-wide text-violet-100">Admin Users</p>
             <h2 className="mt-1 text-2xl font-black">User management</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-violet-100/75">Review customer accounts, update roles, approve KYC, and inspect identity photos from one clean workspace.</p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-violet-100/75">Review customer accounts, approve KYC, and inspect identity photos from one clean workspace.</p>
           </div>
           <button className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white px-4 py-3 text-sm font-black text-violet-800 shadow-soft transition hover:-translate-y-0.5 hover:shadow-glow" onClick={() => exportCsv("users-page.csv", users.map((user) => ({ name: user.name, email: user.email, phone: user.phone, role: user.role, kyc: user.kyc?.status || "not_submitted", lastLogin: user.lastLoginAt || "" })))}>
             Export CSV
@@ -1649,12 +1665,9 @@ function UsersPanel({ users, pagination, filters, setFilters, loadUsers, updateU
                       </div>
                     </td>
                     <td className="w-28 px-3 py-4">
-                      <select className="field !w-28 min-w-0 px-2 text-xs font-black" value={user.role} onChange={(event) => updateUserRole(user._id, event.target.value)}>
-                        <option value="user">user</option>
-                        <option value="owner">owner</option>
-                        <option value="admin">admin</option>
-                        <option value="delivery">delivery</option>
-                      </select>
+                      <span className="inline-flex w-28 justify-center rounded-xl border border-violet-100 bg-violet-50 px-2 py-2 text-xs font-black uppercase tracking-wide text-violet-700 dark:border-violet-900/70 dark:bg-violet-950/50 dark:text-violet-100">
+                        {user.role}
+                      </span>
                     </td>
                     <td className="px-5 py-4">
                       <div className="min-w-0">

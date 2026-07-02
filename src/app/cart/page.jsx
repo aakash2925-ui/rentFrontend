@@ -424,7 +424,8 @@ export default function CartPage() {
   };
 
   const payItemWithRazorpay = async (item, index = 0) => {
-    const { data } = await api.post("/bookings/razorpay/order", payloadForItem(item, index));
+    const bookingPayload = payloadForItem(item, index);
+    const { data } = await api.post("/bookings/razorpay/order", bookingPayload);
     await loadRazorpay();
     return new Promise((resolve, reject) => {
       const checkout = new window.Razorpay({
@@ -438,15 +439,14 @@ export default function CartPage() {
         theme: { color: "#6d28d9" },
         handler: async (response) => {
           try {
-            await api.post("/bookings/razorpay/verify", { bookingId: data.booking._id, ...response });
-            resolve(data.booking);
+            const verified = await api.post("/bookings/razorpay/verify", { ...response, bookingPayload });
+            resolve(verified.data.booking);
           } catch (err) {
             reject(err);
           }
         },
         modal: {
-          ondismiss: async () => {
-            await api.put(`/bookings/${data.booking._id}/payment-failed`, { status: "cancelled" }).catch(() => {});
+          ondismiss: () => {
             reject(new Error("Payment cancelled"));
           }
         }

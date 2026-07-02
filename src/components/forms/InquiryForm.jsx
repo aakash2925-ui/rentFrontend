@@ -403,18 +403,17 @@ export default function InquiryForm({ property }) {
         theme: { color: "#6d28d9" },
         handler: async (response) => {
           try {
-            await api.post("/bookings/razorpay/verify", { bookingId: data.booking._id, ...response });
+            const verified = await api.post("/bookings/razorpay/verify", { ...response, bookingPayload: payload });
             showToast("Payment successful");
             clearCart();
-            router.push(`/booking-confirmation?booking=${data.booking._id}&method=razorpay`);
+            router.push(`/booking-confirmation?booking=${verified.data.booking._id}&method=razorpay`);
             resolve();
           } catch (err) {
             reject(err);
           }
         },
         modal: {
-          ondismiss: async () => {
-            await api.put(`/bookings/${data.booking._id}/payment-failed`, { status: "cancelled" }).catch(() => {});
+          ondismiss: () => {
             reject(new Error("Payment cancelled"));
           }
         }
