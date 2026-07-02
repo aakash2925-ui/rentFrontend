@@ -12,6 +12,7 @@ import { DELIVERY_TIME_SLOTS, calculateRentalPricing, deliverySpeedDetails } fro
 import { minRentalDaysOf, rentalDaysBetween } from "@/lib/itemFields";
 
 const checkoutSteps = ["Cart", "Address", "Delivery", "Payment", "Confirmation"];
+const serviceableStates = ["Uttar Pradesh", "Haryana", "Delhi"];
 
 function toDateInputValue(date) {
   const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -785,7 +786,7 @@ function AddressStep({ addresses, addressForm, setAddressForm, fillAddress, star
         <Field label="Street/Area" value={addressForm.streetArea} onChange={(value) => update("streetArea", value)} />
         <Field label="Landmark" optional value={addressForm.landmark} onChange={(value) => update("landmark", value)} />
         <Field label="City" value={addressForm.city} onChange={(value) => update("city", value)} />
-        <Field label="State" value={addressForm.state} onChange={(value) => update("state", value)} />
+        <StateSelect value={addressForm.state} onChange={(value) => update("state", value)} />
         <label className="space-y-2">
           <span className="text-sm font-black text-violet-950 dark:text-white">PIN Code <span className="text-clay">*</span></span>
           <input className="field h-12 text-base font-black tracking-wide" inputMode="numeric" maxLength={6} value={addressForm.pincode} onChange={(event) => update("pincode", event.target.value.replace(/\D/g, "").slice(0, 6))} />
@@ -984,6 +985,18 @@ function Field({ label, optional = false, value, onChange }) {
     <label className="space-y-2">
       <span className="text-sm font-black text-violet-950 dark:text-white">{label} {!optional && <span className="text-clay">*</span>}</span>
       <input className="field" value={value} onChange={(event) => onChange(event.target.value)} />
+    </label>
+  );
+}
+
+function StateSelect({ value, onChange }) {
+  return (
+    <label className="space-y-2">
+      <span className="text-sm font-black text-violet-950 dark:text-white">State <span className="text-clay">*</span></span>
+      <select className="field" required value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value="">Select state</option>
+        {serviceableStates.map((state) => <option key={state} value={state}>{state}</option>)}
+      </select>
     </label>
   );
 }

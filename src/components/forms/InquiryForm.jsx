@@ -13,6 +13,7 @@ import AddToCartButton from "@/components/cart/AddToCartButton";
 import { useCart } from "@/context/CartContext";
 
 const steps = ["Review", "Address", "Payment", "Confirm"];
+const serviceableStates = ["Uttar Pradesh", "Haryana", "Delhi"];
 
 function toDateInputValue(date) {
   const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -665,7 +666,10 @@ export default function InquiryForm({ property }) {
               </label>
               <label className="space-y-2">
                 <span className="text-sm font-black text-violet-950 dark:text-white">State <span className="text-clay">*</span></span>
-                <input className="field" required value={form.state} onChange={(e) => update("state", e.target.value)} />
+                <select className="field" required value={form.state} onChange={(e) => update("state", e.target.value)}>
+                  <option value="">Select state</option>
+                  {serviceableStates.map((state) => <option key={state} value={state}>{state}</option>)}
+                </select>
               </label>
             </div>
             <div className={`rounded-[1.35rem] border p-4 shadow-sm transition ${

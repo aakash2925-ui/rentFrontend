@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { ShoppingCart, Trash2 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
@@ -10,11 +11,16 @@ import { useAuth } from "@/context/AuthContext";
 export default function AddToCartButton({ property, className = "", compact = false, showGoToCart = true }) {
   const router = useRouter();
   const [showCartAction, setShowCartAction] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const { addItem, items, removeItem } = useCart();
   const { showToast } = useToast();
   const { user, loading } = useAuth();
   const disabled = !property?._id;
   const inCart = items.some((item) => item._id === property._id);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const toggleCart = (event) => {
     event.preventDefault();
@@ -46,7 +52,7 @@ export default function AddToCartButton({ property, className = "", compact = fa
         {inCart ? <Trash2 className={compact ? "h-4 w-4" : "h-5 w-5"} /> : <ShoppingCart className={compact ? "h-4 w-4" : "h-5 w-5"} />}
         {inCart ? "Remove from cart" : "Add to cart"}
       </button>
-      {showGoToCart && showCartAction && inCart && (
+      {mounted && showGoToCart && showCartAction && inCart && createPortal((
         <div className="fixed bottom-5 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl border border-violet-100 bg-white/95 p-3 shadow-glow backdrop-blur-xl dark:border-violet-900/70 dark:bg-stone-950/95">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
@@ -58,7 +64,7 @@ export default function AddToCartButton({ property, className = "", compact = fa
             </button>
           </div>
         </div>
-      )}
+      ), document.body)}
     </>
   );
 }

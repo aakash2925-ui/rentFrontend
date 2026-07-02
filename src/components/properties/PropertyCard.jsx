@@ -48,7 +48,7 @@ export default function PropertyCard({ property }) {
           <span className="flex items-center gap-1"><CalendarClock className="h-4 w-4" /> {minRentalDaysOf(property)}+ days</span>
         </div>
         <div className="mt-4">
-          <AddToCartButton property={property} className="w-full" compact showGoToCart={false} />
+          <AddToCartButton property={property} className="w-full" compact />
         </div>
       </div>
     </article>
