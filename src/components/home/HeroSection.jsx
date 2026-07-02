@@ -1,18 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Camera, Luggage, PartyPopper, Projector, Shirt, Sparkles, Speaker } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 
 export default function HeroSection() {
   return (
     <section className="relative isolate overflow-hidden bg-mist dark:bg-[#11071f]">
-      <div className="absolute inset-0 -z-10">
+      <div className="absolute inset-0 -z-10 bg-[#ead7ff] dark:bg-[#11071f]">
         <img
           src="/zasoota-home-bg.png"
           alt="Zasoota rent use return product background"
-          className="h-full w-full object-cover opacity-28 dark:opacity-24"
+          className="h-full w-full object-contain object-right opacity-70 dark:opacity-62"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-mist via-mist/92 to-mist/50 dark:from-[#11071f] dark:via-[#11071f]/88 dark:to-[#2b1450]/64" />
+        <div className="absolute inset-0 bg-white/18 dark:bg-[#11071f]/24" />
       </div>
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 md:grid-cols-[1.02fr_0.98fr] md:py-14">
         <div className="animate-rise flex flex-col justify-center">
@@ -34,7 +34,7 @@ export default function HeroSection() {
             </Link>
           </div>
         </div>
-        <div className="float-soft min-h-[210px] overflow-hidden rounded-[2rem] border border-white/70 bg-white/30 p-3 shadow-glow backdrop-blur dark:border-violet-900/70 dark:bg-white/10 md:min-h-[235px]">
+        {/* <div className="float-soft min-h-[210px] overflow-hidden rounded-[2rem] border border-white/70 bg-white/30 p-3 shadow-glow backdrop-blur dark:border-violet-900/70 dark:bg-white/10 md:min-h-[235px]">
           <div className="relative h-full min-h-[188px] overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-violet-950 via-violet-800 to-fuchsia-700 p-4 text-white md:min-h-[213px]" aria-label="Animated rental categories">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.34),transparent_24%),radial-gradient(circle_at_80%_75%,rgba(240,229,250,0.24),transparent_28%)]" />
             <div className="absolute left-8 top-1/2 h-14 w-[72%] -translate-y-1/2 rounded-full bg-gradient-to-r from-white/45 via-fuchsia-200/25 to-transparent blur-xl" />
@@ -61,7 +61,7 @@ export default function HeroSection() {
             </div>
             <div className="absolute right-16 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_28px_12px_rgba(255,255,255,0.45)] animate-pulse" />
           </div>
-        </div>
+        </div> */}
       </div>
     </section>
   );
