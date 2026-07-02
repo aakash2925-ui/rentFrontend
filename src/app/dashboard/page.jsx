@@ -583,7 +583,6 @@ function ProfilePanel({ user }) {
     legalName: user?.kyc?.legalName || user?.name || "",
     documentType: ["aadhaar", "pan", "passport"].includes(user?.kyc?.documentType) ? user.kyc.documentType : "aadhaar"
   });
-  const [kycOtp, setKycOtp] = useState("");
   const [cameraActive, setCameraActive] = useState(false);
   const [capturePreview, setCapturePreview] = useState("");
   const [captureFile, setCaptureFile] = useState(null);
@@ -592,9 +591,9 @@ function ProfilePanel({ user }) {
   const [documentErrors, setDocumentErrors] = useState({});
   const [uploadProgress, setUploadProgress] = useState(0);
   const [savingKyc, setSavingKyc] = useState(false);
-  const [verifyingKyc, setVerifyingKyc] = useState(false);
   const kycStatus = user?.kyc?.status || "not_submitted";
   const kycApproved = kycStatus === "approved";
+  const kycPendingReview = ["pending", "otp_pending"].includes(kycStatus);
   const kycPhotoSubmitted = Boolean(user?.kyc?.hasSelfieWithIdImage);
   const documentRequirements = useMemo(() => (
     kycForm.documentType === "aadhaar"
@@ -710,26 +709,12 @@ function ProfilePanel({ user }) {
       setDocumentFiles({ documentFront: null, documentBack: null });
       setDocumentPreviews({ documentFront: "", documentBack: "" });
       setDocumentErrors({});
-      showToast(data.message || "KYC OTP sent to your email");
+      showToast(data.message || "KYC submitted for admin review");
     } catch (err) {
       showToast(err.response?.data?.message || "Unable to submit KYC", "error");
     } finally {
       setSavingKyc(false);
       setUploadProgress(0);
-    }
-  };
-
-  const verifyKyc = async () => {
-    setVerifyingKyc(true);
-    try {
-      const { data } = await api.post("/auth/kyc/verify", { otp: kycOtp });
-      updateUser(data.user);
-      setKycOtp("");
-      showToast("KYC verified successfully");
-    } catch (err) {
-      showToast(err.response?.data?.message || "Unable to verify KYC OTP", "error");
-    } finally {
-      setVerifyingKyc(false);
     }
   };
 
@@ -784,7 +769,7 @@ function ProfilePanel({ user }) {
         <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
           <div>
             <h3 className="text-lg font-black text-ink dark:text-white">KYC Verification</h3>
-            <p className="mt-1 text-sm text-violet-950/60 dark:text-violet-100/65">After your booking is confirmed, submit identity details and verify the OTP sent to your registered email.</p>
+            <p className="mt-1 text-sm text-violet-950/60 dark:text-violet-100/65">After your booking is confirmed, submit identity documents for admin review.</p>
           </div>
           <span className={`w-fit rounded-full px-3 py-1 text-xs font-black ${
             kycStatus === "approved" ? "bg-green-50 text-green-700" : kycStatus === "rejected" ? "bg-red-50 text-red-700" : ["pending", "otp_pending"].includes(kycStatus) ? "bg-amber-50 text-amber-700" : "bg-violet-50 text-violet-700"
@@ -954,17 +939,11 @@ function ProfilePanel({ user }) {
           </div>
         )}
         <button className="btn-primary mt-4 disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={!canSubmitKyc}>
-          {savingKyc ? `Uploading ${uploadProgress || 0}%` : kycApproved ? "KYC approved" : kycStatus === "otp_pending" ? "Resend OTP" : "Submit KYC"}
+          {savingKyc ? `Uploading ${uploadProgress || 0}%` : kycApproved ? "KYC approved" : kycPendingReview ? "Update submitted KYC" : "Submit KYC"}
         </button>
-        {kycStatus === "otp_pending" && (
-          <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50/80 p-4 dark:border-amber-900/60 dark:bg-amber-950/20">
-            <p className="text-sm font-black text-amber-800 dark:text-amber-100">Enter the 6-digit OTP sent to {user?.email}</p>
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <input className="field tracking-[0.35em]" inputMode="numeric" maxLength={6} placeholder="000000" value={kycOtp} onChange={(event) => setKycOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} />
-              <button className="btn-primary shrink-0" type="button" disabled={verifyingKyc || kycOtp.length !== 6} onClick={verifyKyc}>
-                {verifyingKyc ? "Verifying..." : "Verify OTP"}
-              </button>
-            </div>
+        {kycPendingReview && (
+          <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50/80 p-4 text-sm font-bold text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-100">
+            KYC is submitted for admin review. It will show as verified only after admin approval.
           </div>
         )}
       </form>
