@@ -10,19 +10,19 @@ export default function HeroSection() {
         <img
           src="/zasoota-home-bg.png"
           alt="Zasoota rent use return product background"
-          className="h-full w-full object-contain object-right opacity-70 dark:opacity-62"
+          className="h-full w-full object-contain object-right opacity-38 dark:opacity-34 md:opacity-70 md:dark:opacity-62"
         />
-        <div className="absolute inset-0 bg-white/18 dark:bg-[#11071f]/24" />
+        <div className="absolute inset-0 bg-white/32 dark:bg-[#11071f]/42 md:bg-white/18 md:dark:bg-[#11071f]/24" />
       </div>
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 md:grid-cols-[1.02fr_0.98fr] md:py-14">
-        <div className="animate-rise flex flex-col justify-center">
+        <div className="animate-rise flex flex-col justify-center rounded-[1.75rem] bg-white/50 p-4 shadow-sm backdrop-blur-sm dark:bg-[#11071f]/50 md:bg-transparent md:p-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent">
           <p className="inline-flex w-fit items-center gap-2 rounded-full border border-violet-200 bg-white/75 px-3 py-1 text-xs font-black uppercase tracking-wide text-meadow shadow-sm backdrop-blur dark:border-violet-800 dark:bg-white/10 dark:text-violet-100">
             <Sparkles className="h-4 w-4" /> Zasoota
           </p>
-          <h1 className="mt-5 max-w-3xl text-5xl font-black leading-[1.02] text-ink dark:text-stone-50 md:text-7xl">
+          <h1 className="mt-5 max-w-3xl text-5xl font-black leading-[1.02] text-ink drop-shadow-sm dark:text-stone-50 md:text-7xl">
             Access Over Ownership
           </h1>
-          <p className="mt-5 max-w-2xl text-lg leading-8 text-violet-950/72 dark:text-violet-100/80">
+          <p className="mt-5 max-w-2xl text-lg font-semibold leading-8 text-violet-950/78 dark:text-violet-100/86 md:font-normal">
             Rent projectors, speakers, cameras, luggage, fashion and more — delivered to your doorstep.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
