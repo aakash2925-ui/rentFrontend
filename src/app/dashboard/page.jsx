@@ -732,6 +732,18 @@ function ProfilePanel({ user }) {
     setDocumentErrors((current) => ({ ...current, [field]: "" }));
   };
 
+  const handleSelfieFile = (file) => {
+    const error = validateKycUploadFile(file);
+    if (error) {
+      showToast(error, "error");
+      return;
+    }
+    if (capturePreview) URL.revokeObjectURL(capturePreview);
+    setCaptureFile(file);
+    setCapturePreview(file.type.startsWith("image/") ? URL.createObjectURL(file) : "");
+    stopCamera();
+  };
+
   const removeDocumentFile = (field) => {
     if (documentPreviews[field]) URL.revokeObjectURL(documentPreviews[field]);
     setDocumentFiles((current) => ({ ...current, [field]: null }));
@@ -772,7 +784,7 @@ function ProfilePanel({ user }) {
             <p className="mt-1 text-sm text-violet-950/60 dark:text-violet-100/65">After your booking is confirmed, submit identity documents for admin review.</p>
           </div>
           <span className={`w-fit rounded-full px-3 py-1 text-xs font-black ${
-            kycStatus === "approved" ? "bg-green-50 text-green-700" : kycStatus === "rejected" ? "bg-red-50 text-red-700" : ["pending", "otp_pending"].includes(kycStatus) ? "bg-amber-50 text-amber-700" : "bg-violet-50 text-violet-700"
+            kycStatus === "approved" ? "bg-green-50 text-green-700" : kycStatus === "rejected" ? "bg-red-50 text-red-700" : kycPendingReview ? "bg-amber-50 text-amber-700" : "bg-violet-50 text-violet-700"
           }`}>
             {kycStatus.replace("_", " ")}
           </span>
@@ -912,6 +924,19 @@ function ProfilePanel({ user }) {
                   <button className="btn-secondary" type="button" disabled={cameraActive} onClick={startCamera}>
                     <Camera className="h-4 w-4" /> Open camera
                   </button>
+                  <label className="btn-secondary cursor-pointer">
+                    <Upload className="h-4 w-4" /> Upload live photo
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+                      capture="user"
+                      onChange={(event) => {
+                        handleSelfieFile(event.target.files?.[0]);
+                        event.target.value = "";
+                      }}
+                    />
+                  </label>
                   {cameraActive && (
                     <button className="btn-primary" type="button" onClick={captureKycPhoto}>
                       <Upload className="h-4 w-4" /> Capture photo
@@ -941,10 +966,10 @@ function ProfilePanel({ user }) {
         <button className="btn-primary mt-4 disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled={!canSubmitKyc}>
           {savingKyc ? `Uploading ${uploadProgress || 0}%` : kycApproved ? "KYC approved" : kycPendingReview ? "Update submitted KYC" : "Submit KYC"}
         </button>
-        {kycPendingReview && (
-          <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50/80 p-4 text-sm font-bold text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-100">
+        {kycPendingReview && !kycApproved && (
+          <p className="mt-3 rounded-2xl border border-amber-100 bg-amber-50/80 px-4 py-3 text-sm font-bold text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-100">
             KYC is submitted for admin review. It will show as verified only after admin approval.
-          </div>
+          </p>
         )}
       </form>
       )}
