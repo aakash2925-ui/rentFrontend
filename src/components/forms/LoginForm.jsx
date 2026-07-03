@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -70,7 +69,6 @@ export default function LoginForm() {
         <input className="field" type="password" placeholder="Password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
         <button className="btn-primary w-full" disabled={loading}>{loading ? "Signing in..." : "Login"}</button>
       </div>
-      <p className="mt-4 text-center text-sm text-stone-500">New here? <Link className="font-bold text-meadow" href="/register">Create an account</Link></p>
     </form>
   );
 }
