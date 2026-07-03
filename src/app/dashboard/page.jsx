@@ -111,7 +111,8 @@ const bookingTrackerIndex = (booking) => {
   return 0;
 };
 
-const KYC_MAX_FILE_SIZE = 5 * 1024 * 1024;
+const KYC_MAX_FILE_SIZE = 8 * 1024 * 1024;
+const KYC_TARGET_IMAGE_SIZE = 4 * 1024 * 1024;
 const KYC_ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
 const kycDocumentLabels = {
   aadhaar: "Aadhaar Card",
@@ -122,9 +123,40 @@ const kycDocumentLabels = {
 const validateKycUploadFile = (file) => {
   if (!file) return "Select a clear JPG, PNG, or PDF file";
   if (!KYC_ALLOWED_TYPES.includes(file.type)) return "Only JPG, PNG, and PDF files are supported";
-  if (file.size > KYC_MAX_FILE_SIZE) return "File size must be 5 MB or less";
+  if (file.size > KYC_MAX_FILE_SIZE) return "File size must be 8 MB or less";
   return "";
 };
+
+const resizeKycImage = (file) => new Promise((resolve) => {
+  if (!file?.type?.startsWith("image/") || file.size <= KYC_TARGET_IMAGE_SIZE) {
+    resolve(file);
+    return;
+  }
+
+  const image = new Image();
+  const objectUrl = URL.createObjectURL(file);
+  image.onload = () => {
+    const maxSide = 1600;
+    const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+    canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      URL.revokeObjectURL(objectUrl);
+      if (!blob) {
+        resolve(file);
+        return;
+      }
+      resolve(new File([blob], file.name.replace(/\.(png|jpg|jpeg)$/i, ".jpg"), { type: "image/jpeg" }));
+    }, "image/jpeg", 0.78);
+  };
+  image.onerror = () => {
+    URL.revokeObjectURL(objectUrl);
+    resolve(file);
+  };
+  image.src = objectUrl;
+});
 
 export default function UserDashboardPage() {
   const { user, logout } = useAuth();
@@ -639,8 +671,10 @@ function ProfilePanel({ user }) {
       showToast("Camera is still loading. Please try again in a moment.", "error");
       return;
     }
-    canvas.width = video.videoWidth || 960;
-    canvas.height = video.videoHeight || 720;
+    const maxSide = 1280;
+    const scale = Math.min(1, maxSide / Math.max(video.videoWidth, video.videoHeight));
+    canvas.width = Math.round((video.videoWidth || 960) * scale);
+    canvas.height = Math.round((video.videoHeight || 720) * scale);
     canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
     canvas.toBlob((blob) => {
       if (!blob) return;
@@ -648,7 +682,7 @@ function ProfilePanel({ user }) {
       setCaptureFile(file);
       setCapturePreview(URL.createObjectURL(file));
       stopCamera();
-    }, "image/jpeg", 0.9);
+    }, "image/jpeg", 0.78);
   };
 
   useEffect(() => () => stopCamera(false), []);
@@ -718,29 +752,31 @@ function ProfilePanel({ user }) {
     }
   };
 
-  const handleDocumentFile = (field, file) => {
-    const error = validateKycUploadFile(file);
+  const handleDocumentFile = async (field, file) => {
     if (documentPreviews[field]) URL.revokeObjectURL(documentPreviews[field]);
+    const preparedFile = await resizeKycImage(file);
+    const error = validateKycUploadFile(preparedFile);
     if (error) {
       setDocumentFiles((current) => ({ ...current, [field]: null }));
       setDocumentPreviews((current) => ({ ...current, [field]: "" }));
       setDocumentErrors((current) => ({ ...current, [field]: error }));
       return;
     }
-    setDocumentFiles((current) => ({ ...current, [field]: file }));
-    setDocumentPreviews((current) => ({ ...current, [field]: file.type.startsWith("image/") ? URL.createObjectURL(file) : "" }));
+    setDocumentFiles((current) => ({ ...current, [field]: preparedFile }));
+    setDocumentPreviews((current) => ({ ...current, [field]: preparedFile.type.startsWith("image/") ? URL.createObjectURL(preparedFile) : "" }));
     setDocumentErrors((current) => ({ ...current, [field]: "" }));
   };
 
-  const handleSelfieFile = (file) => {
-    const error = validateKycUploadFile(file);
+  const handleSelfieFile = async (file) => {
+    const preparedFile = await resizeKycImage(file);
+    const error = validateKycUploadFile(preparedFile);
     if (error) {
       showToast(error, "error");
       return;
     }
     if (capturePreview) URL.revokeObjectURL(capturePreview);
-    setCaptureFile(file);
-    setCapturePreview(file.type.startsWith("image/") ? URL.createObjectURL(file) : "");
+    setCaptureFile(preparedFile);
+    setCapturePreview(preparedFile.type.startsWith("image/") ? URL.createObjectURL(preparedFile) : "");
     stopCamera();
   };
 
