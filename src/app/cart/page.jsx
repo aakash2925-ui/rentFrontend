@@ -416,7 +416,7 @@ export default function CartPage() {
 
   const confirmCod = async () => {
     const bookings = [];
-    for (const [index, item] of items.entries()) {
+    for (const [index, item] of pricedItems.entries()) {
       const { data } = await api.post("/bookings/cod", payloadForItem(item, index));
       bookings.push(data.booking);
     }
@@ -469,7 +469,7 @@ export default function CartPage() {
         ? await confirmCod()
         : await (async () => {
           const paidBookings = [];
-          for (const [index, item] of items.entries()) paidBookings.push(await payItemWithRazorpay(item, index));
+          for (const [index, item] of pricedItems.entries()) paidBookings.push(await payItemWithRazorpay(item, index));
           return paidBookings;
         })();
       setConfirmedBookings(bookings);

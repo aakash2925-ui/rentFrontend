@@ -1421,6 +1421,9 @@ function RequestedItemsPanel({ itemRequests, filters, setFilters, updateItemRequ
     available: "border-green-200 bg-green-50 text-green-700",
     rejected: "border-red-200 bg-red-50 text-red-700"
   }[status] || "border-violet-100 bg-violet-50 text-violet-700");
+  const requestDuration = (request) => request.rentalStartDate && request.rentalEndDate
+    ? `${formatDate(request.rentalStartDate)} to ${formatDate(request.rentalEndDate)}`
+    : request.expectedRentalDuration || "-";
 
   const filteredRequests = itemRequests.filter((request) => {
     const search = (filters.search || "").toLowerCase();
@@ -1455,6 +1458,9 @@ function RequestedItemsPanel({ itemRequests, filters, setFilters, updateItemRequ
             customer: request.user?.name,
             phone: request.contactNumber,
             pincode: request.locationPincode,
+            rentalStartDate: request.rentalStartDate,
+            rentalEndDate: request.rentalEndDate,
+            duration: requestDuration(request),
             status: request.status,
             createdAt: request.createdAt
           })))}>
@@ -1515,7 +1521,7 @@ function RequestedItemsPanel({ itemRequests, filters, setFilters, updateItemRequ
                     <td className="px-5 py-5">
                       <div className="inline-flex max-w-[210px] items-center gap-2 rounded-2xl border border-violet-100 bg-violet-50/70 px-3 py-2 text-sm font-bold text-violet-900 dark:border-violet-900/60 dark:bg-white/5 dark:text-violet-100">
                         <CalendarCheck className="h-4 w-4 shrink-0" />
-                        <span className="truncate" title={request.expectedRentalDuration || "-"}>{request.expectedRentalDuration || "-"}</span>
+                        <span className="truncate" title={requestDuration(request)}>{requestDuration(request)}</span>
                       </div>
                     </td>
                     <td className="px-5 py-5">

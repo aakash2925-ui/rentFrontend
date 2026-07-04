@@ -33,7 +33,8 @@ export default function Navbar() {
     itemName: "",
     category: "",
     description: "",
-    expectedRentalDuration: "",
+    rentalStartDate: "",
+    rentalEndDate: "",
     locationPincode: "",
     contactNumber: ""
   });
@@ -129,7 +130,8 @@ export default function Navbar() {
         itemName: "",
         category: "",
         description: "",
-        expectedRentalDuration: "",
+        rentalStartDate: "",
+        rentalEndDate: "",
         locationPincode: "",
         contactNumber: user?.phone || ""
       });
@@ -192,27 +194,45 @@ export default function Navbar() {
         </div>
         <form onSubmit={submitItemRequest} className="grid gap-4 p-5 md:grid-cols-2">
           <label className="space-y-2">
-            <span className="text-sm font-black">Item Name</span>
+            <span className="text-sm font-black">Item Name <span className="text-red-500">*</span></span>
             <input className="field" required value={requestForm.itemName} onChange={(event) => updateRequestForm("itemName", event.target.value)} placeholder="e.g. DSLR gimbal" />
           </label>
           <label className="space-y-2">
             <span className="text-sm font-black">Category</span>
-            <input className="field" required value={requestForm.category} onChange={(event) => updateRequestForm("category", event.target.value)} placeholder="Camera, event, travel..." />
+            <input className="field" value={requestForm.category} onChange={(event) => updateRequestForm("category", event.target.value)} placeholder="Camera, event, travel..." />
           </label>
           <label className="space-y-2 md:col-span-2">
             <span className="text-sm font-black">Item Description</span>
-            <textarea className="field min-h-28 resize-y" required value={requestForm.description} onChange={(event) => updateRequestForm("description", event.target.value)} placeholder="Share brand, model, use case, or any required specifications." />
+            <textarea className="field min-h-28 resize-y" value={requestForm.description} onChange={(event) => updateRequestForm("description", event.target.value)} placeholder="Share brand, model, use case, or any required specifications." />
           </label>
           <label className="space-y-2">
-            <span className="text-sm font-black">Expected Rental Duration</span>
-            <input className="field" required value={requestForm.expectedRentalDuration} onChange={(event) => updateRequestForm("expectedRentalDuration", event.target.value)} placeholder="e.g. 3 days, 1 week" />
+            <span className="text-sm font-black">Rental Start Date <span className="text-red-500">*</span></span>
+            <input
+              className="field"
+              required
+              type="date"
+              min={new Date().toISOString().slice(0, 10)}
+              value={requestForm.rentalStartDate}
+              onChange={(event) => updateRequestForm("rentalStartDate", event.target.value)}
+            />
           </label>
           <label className="space-y-2">
-            <span className="text-sm font-black">Delivery Location / Pincode</span>
+            <span className="text-sm font-black">Rental End Date <span className="text-red-500">*</span></span>
+            <input
+              className="field"
+              required
+              type="date"
+              min={requestForm.rentalStartDate || new Date().toISOString().slice(0, 10)}
+              value={requestForm.rentalEndDate}
+              onChange={(event) => updateRequestForm("rentalEndDate", event.target.value)}
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-black">Delivery Location / Pincode <span className="text-red-500">*</span></span>
             <input className="field" required value={requestForm.locationPincode} onChange={(event) => updateRequestForm("locationPincode", event.target.value)} placeholder="Area or 6-digit pincode" />
           </label>
           <label className="space-y-2">
-            <span className="text-sm font-black">Contact Number</span>
+            <span className="text-sm font-black">Contact Number <span className="text-red-500">*</span></span>
             <input className="field" required type="tel" value={requestForm.contactNumber} onChange={(event) => updateRequestForm("contactNumber", event.target.value)} placeholder="Mobile number" />
           </label>
           <div className="flex flex-col-reverse gap-2 pt-2 md:col-span-2 md:flex-row md:justify-end">
