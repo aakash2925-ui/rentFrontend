@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, Menu, PlusCircle, Search, ShoppingCart, UserRound } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Loader2, LogOut, Menu, PackagePlus, PlusCircle, Search, ShoppingCart, UserRound, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
+import { useToast } from "@/context/ToastContext";
 
 const links = [
   { href: "/", label: "Home" },
@@ -18,12 +20,28 @@ export default function Navbar() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const { count } = useCart();
+  const { showToast } = useToast();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [suggestionLoading, setSuggestionLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [requestLoading, setRequestLoading] = useState(false);
+  const [requestForm, setRequestForm] = useState({
+    itemName: "",
+    category: "",
+    description: "",
+    expectedRentalDuration: "",
+    locationPincode: "",
+    contactNumber: ""
+  });
   const blurTimer = useRef(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
 
@@ -44,6 +62,19 @@ export default function Navbar() {
 
     return () => clearTimeout(timer);
   }, [query]);
+
+  useEffect(() => {
+    if (!user || user.role !== "user") return;
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = params.get("requestItem") === "1";
+    const shouldOpen = fromQuery || sessionStorage.getItem("open_request_item") === "1";
+    if (!shouldOpen) return;
+
+    sessionStorage.removeItem("open_request_item");
+    setRequestForm((current) => ({ ...current, contactNumber: current.contactNumber || user.phone || "" }));
+    setRequestOpen(true);
+    if (fromQuery) router.replace(pathname || "/");
+  }, [pathname, router, user]);
 
   const searchItems = (event) => {
     event.preventDefault();
@@ -73,6 +104,43 @@ export default function Navbar() {
     closeMenu();
     router.push("/");
   };
+
+  const openRequestModal = () => {
+    closeMenu();
+    if (!user) {
+      sessionStorage.setItem("open_request_item", "1");
+      showToast("Please login to request an item", "error");
+      router.push("/login");
+      return;
+    }
+    if (user.role !== "user") return;
+    setRequestForm((current) => ({ ...current, contactNumber: current.contactNumber || user.phone || "" }));
+    setRequestOpen(true);
+  };
+
+  const submitItemRequest = async (event) => {
+    event.preventDefault();
+    setRequestLoading(true);
+    try {
+      const { data } = await api.post("/item-requests", requestForm);
+      showToast(data.message || "Your item request has been submitted successfully. We will notify you when it becomes available.");
+      setRequestOpen(false);
+      setRequestForm({
+        itemName: "",
+        category: "",
+        description: "",
+        expectedRentalDuration: "",
+        locationPincode: "",
+        contactNumber: user?.phone || ""
+      });
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to submit item request", "error");
+    } finally {
+      setRequestLoading(false);
+    }
+  };
+
+  const updateRequestForm = (key, value) => setRequestForm((current) => ({ ...current, [key]: value }));
   const openSuggestion = (item) => {
     setQuery(item.title || "");
     closeMenu();
@@ -109,7 +177,58 @@ export default function Navbar() {
     )
   );
 
+  const requestModal = requestOpen && (
+    <div className="fixed inset-0 z-[9999] overflow-y-auto bg-violet-950/70 px-4 py-6 backdrop-blur-sm">
+      <div className="mx-auto max-w-2xl overflow-hidden rounded-[2rem] border border-white/20 bg-white shadow-glow dark:bg-[#12081f]">
+        <div className="flex items-start justify-between gap-4 bg-gradient-to-br from-violet-800 via-violet-700 to-fuchsia-700 p-5 text-white">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-violet-100">Zasoota request desk</p>
+            <h2 className="mt-2 text-2xl font-black">Request an Item</h2>
+            <p className="mt-1 text-sm font-semibold text-violet-100/80">Tell us what you need and we will notify you when it becomes available.</p>
+          </div>
+          <button className="rounded-xl bg-white/15 p-2 text-white transition hover:bg-white/25" type="button" onClick={() => setRequestOpen(false)} aria-label="Close request item modal">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <form onSubmit={submitItemRequest} className="grid gap-4 p-5 md:grid-cols-2">
+          <label className="space-y-2">
+            <span className="text-sm font-black">Item Name</span>
+            <input className="field" required value={requestForm.itemName} onChange={(event) => updateRequestForm("itemName", event.target.value)} placeholder="e.g. DSLR gimbal" />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-black">Category</span>
+            <input className="field" required value={requestForm.category} onChange={(event) => updateRequestForm("category", event.target.value)} placeholder="Camera, event, travel..." />
+          </label>
+          <label className="space-y-2 md:col-span-2">
+            <span className="text-sm font-black">Item Description</span>
+            <textarea className="field min-h-28 resize-y" required value={requestForm.description} onChange={(event) => updateRequestForm("description", event.target.value)} placeholder="Share brand, model, use case, or any required specifications." />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-black">Expected Rental Duration</span>
+            <input className="field" required value={requestForm.expectedRentalDuration} onChange={(event) => updateRequestForm("expectedRentalDuration", event.target.value)} placeholder="e.g. 3 days, 1 week" />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-black">Delivery Location / Pincode</span>
+            <input className="field" required value={requestForm.locationPincode} onChange={(event) => updateRequestForm("locationPincode", event.target.value)} placeholder="Area or 6-digit pincode" />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-black">Contact Number</span>
+            <input className="field" required type="tel" value={requestForm.contactNumber} onChange={(event) => updateRequestForm("contactNumber", event.target.value)} placeholder="Mobile number" />
+          </label>
+          <div className="flex flex-col-reverse gap-2 pt-2 md:col-span-2 md:flex-row md:justify-end">
+            <button className="btn-secondary" type="button" onClick={() => setRequestOpen(false)}>Cancel</button>
+            <button className="btn-primary" type="submit" disabled={requestLoading}>
+              {requestLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+              {requestLoading ? "Submitting..." : "Submit Request"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
   return (
+    <>
     <header className="sticky top-0 z-40 border-b border-violet-100 bg-white/85 shadow-sm backdrop-blur-xl dark:border-violet-900/70 dark:bg-[#11071f]/88">
       <nav className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
         <Link href="/" onClick={closeMenu} className="group flex items-center" aria-label="Zasoota home">
@@ -171,6 +290,11 @@ export default function Navbar() {
               <PlusCircle className="h-4 w-4" /> Add
             </Link>
           )}
+          {(!user || user.role === "user") && (
+            <button type="button" onClick={openRequestModal} className="btn-secondary">
+              <PackagePlus className="h-4 w-4" /> Request an Item
+            </button>
+          )}
           {user?.role === "delivery" ? (
             <button type="button" onClick={signOut} className="btn-secondary">
               <LogOut className="h-4 w-4" /> Logout
@@ -185,5 +309,7 @@ export default function Navbar() {
         </div>
       </nav>
     </header>
+    {mounted && createPortal(requestModal, document.body)}
+    </>
   );
 }

@@ -21,6 +21,7 @@ const adminTasks = [
   { id: "items", label: "Items", icon: Boxes },
   { id: "vouchers", label: "Vouchers", icon: TicketPercent },
   { id: "bookings", label: "Booking Requests", icon: Package },
+  { id: "requested-items", label: "Requested Items", icon: PackagePlus },
   { id: "delivery", label: "Delivery", icon: Truck },
   { id: "contacts", label: "Contact Inquiries", icon: Mail },
   { id: "activity", label: "Activity Logs", icon: History },
@@ -131,10 +132,17 @@ const emptyDeliveryForm = {
   joiningDate: ""
 };
 
+const itemRequestStatusOptions = [
+  ["pending", "Pending"],
+  ["reviewed", "Reviewed"],
+  ["available", "Available"],
+  ["rejected", "Rejected"]
+];
+
 export default function AdminDashboardPage() {
   const { user, logout } = useAuth();
   const router = useRouter();
-  const [data, setData] = useState({ stats: null, users: [], properties: [], bookings: [], contacts: [], logs: [], itemTypes: [], vouchers: [], deliveryBoys: [], deliveryAssignments: [] });
+  const [data, setData] = useState({ stats: null, users: [], properties: [], bookings: [], contacts: [], logs: [], itemTypes: [], vouchers: [], deliveryBoys: [], deliveryAssignments: [], itemRequests: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [typeName, setTypeName] = useState("");
@@ -168,10 +176,11 @@ export default function AdminDashboardPage() {
       api.get("/admin/activity-logs", { params: { page: 1, limit: 10 } }),
       api.get("/item-types"),
       api.get("/vouchers"),
+      api.get("/item-requests"),
       api.get("/delivery/boys"),
       api.get("/delivery/assignments")
     ])
-      .then(([stats, users, properties, bookings, contacts, logs, itemTypes, vouchers, deliveryBoys, deliveryAssignments]) => {
+      .then(([stats, users, properties, bookings, contacts, logs, itemTypes, vouchers, itemRequests, deliveryBoys, deliveryAssignments]) => {
         setData({
           stats: stats.data.stats,
           users: users.data.users,
@@ -181,6 +190,7 @@ export default function AdminDashboardPage() {
           logs: logs.data.logs,
           itemTypes: itemTypes.data.itemTypes,
           vouchers: vouchers.data.vouchers,
+          itemRequests: itemRequests.data.itemRequests,
           deliveryBoys: deliveryBoys.data.deliveryBoys,
           deliveryAssignments: deliveryAssignments.data.assignments
         });
@@ -563,6 +573,20 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const updateItemRequest = async (id, payload) => {
+    try {
+      const { data: response } = await api.put(`/item-requests/${id}`, payload);
+      setData((current) => ({
+        ...current,
+        itemRequests: current.itemRequests.map((request) => request._id === id ? response.itemRequest : request)
+      }));
+      await loadActivityLogs();
+      showToast("Item request updated");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Unable to update item request", "error");
+    }
+  };
+
   const deleteContact = async (id) => {
     if (!window.confirm("Delete this contact inquiry?")) return;
     try {
@@ -652,6 +676,7 @@ export default function AdminDashboardPage() {
               {activeTask === "items" && <ItemsPanel items={data.properties} filters={filters} setFilters={setFilters} deleteItem={deleteItem} exportCsv={exportCsv} />}
               {activeTask === "vouchers" && <VouchersPanel vouchers={data.vouchers} voucherForm={voucherForm} setVoucherForm={setVoucherForm} editingVoucher={editingVoucher} saveVoucher={saveVoucher} startEditVoucher={startEditVoucher} resetVoucherForm={resetVoucherForm} deleteVoucher={deleteVoucher} exportCsv={exportCsv} />}
               {activeTask === "bookings" && <BookingsPanel bookings={data.bookings} deliveryBoys={data.deliveryBoys} deliveryAssignments={data.deliveryAssignments} pagination={bookingPagination} filters={filters} setFilters={setFilters} loadBookings={loadBookings} assignDeliveryBoy={assignDeliveryBoy} updateBookingStatus={updateBookingStatus} updateOrderStatus={updateOrderStatus} updatePaymentStatus={updatePaymentStatus} sendKycReminder={sendKycReminder} exportCsv={exportCsv} />}
+              {activeTask === "requested-items" && <RequestedItemsPanel itemRequests={data.itemRequests} filters={filters} setFilters={setFilters} updateItemRequest={updateItemRequest} exportCsv={exportCsv} />}
               {activeTask === "delivery" && <DeliveryPanel deliveryBoys={data.deliveryBoys} assignments={data.deliveryAssignments} filters={filters} setFilters={setFilters} deliveryForm={deliveryForm} setDeliveryForm={setDeliveryForm} deliveryFiles={deliveryFiles} setDeliveryFiles={setDeliveryFiles} editingDeliveryBoy={editingDeliveryBoy} saveDeliveryBoy={saveDeliveryBoy} resetDeliveryForm={resetDeliveryForm} startEditDeliveryBoy={startEditDeliveryBoy} deleteDeliveryBoy={deleteDeliveryBoy} exportCsv={exportCsv} />}
               {activeTask === "contacts" && <ContactsPanel contacts={data.contacts} filters={filters} setFilters={setFilters} updateContactStatus={updateContactStatus} deleteContact={deleteContact} exportCsv={exportCsv} />}
               {activeTask === "activity" && <ActivityPanel logs={data.logs} pagination={logPagination} filters={filters} setFilters={setFilters} loadActivityLogs={loadActivityLogs} exportCsv={exportCsv} />}
@@ -1385,6 +1410,153 @@ function ControlSelect({ label, value, onChange, children }) {
         {children}
       </select>
     </label>
+  );
+}
+
+function RequestedItemsPanel({ itemRequests, filters, setFilters, updateItemRequest, exportCsv }) {
+  const [remarks, setRemarks] = useState({});
+  const statusClass = (status) => ({
+    pending: "border-amber-200 bg-amber-50 text-amber-700",
+    reviewed: "border-blue-200 bg-blue-50 text-blue-700",
+    available: "border-green-200 bg-green-50 text-green-700",
+    rejected: "border-red-200 bg-red-50 text-red-700"
+  }[status] || "border-violet-100 bg-violet-50 text-violet-700");
+
+  const filteredRequests = itemRequests.filter((request) => {
+    const search = (filters.search || "").toLowerCase();
+    const matchesSearch = !search
+      || request.itemName?.toLowerCase().includes(search)
+      || request.category?.toLowerCase().includes(search)
+      || request.user?.name?.toLowerCase().includes(search)
+      || request.contactNumber?.toLowerCase().includes(search)
+      || request.locationPincode?.toLowerCase().includes(search);
+    const matchesStatus = !filters.status || request.status === filters.status;
+    return matchesSearch && matchesStatus;
+  });
+
+  const saveRequest = (request, nextStatus = request.status) => {
+    updateItemRequest(request._id, {
+      status: nextStatus,
+      remarks: remarks[request._id] ?? request.remarks ?? ""
+    });
+  };
+
+  return (
+    <section className="space-y-5">
+      <div className="rounded-[1.5rem] border border-violet-100 bg-white p-5 shadow-sm dark:border-violet-900/70 dark:bg-stone-950/70">
+        <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+          <div>
+            <h2 className="text-xl font-black text-ink dark:text-white">Requested Items</h2>
+            <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">Review customer demand and mark requested inventory as reviewed, available, or rejected.</p>
+          </div>
+          <button className="btn-secondary" type="button" onClick={() => exportCsv("requested-items.csv", filteredRequests.map((request) => ({
+            itemName: request.itemName,
+            category: request.category,
+            customer: request.user?.name,
+            phone: request.contactNumber,
+            pincode: request.locationPincode,
+            status: request.status,
+            createdAt: request.createdAt
+          })))}>
+            Export CSV
+          </button>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-[1fr_220px]">
+          <input className="field" placeholder="Search item, customer, pincode, or phone" value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} />
+          <select className="field" value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
+            <option value="">All statuses</option>
+            {itemRequestStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-[1.5rem] border border-violet-100 bg-white shadow-sm dark:border-violet-900/70 dark:bg-stone-950/70">
+        {filteredRequests.length ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-[1320px] w-full border-collapse text-left">
+              <thead className="bg-violet-50/80 text-xs uppercase tracking-wide text-violet-950/60 dark:bg-white/5 dark:text-violet-100/60">
+                <tr>
+                  <th className="px-5 py-4 font-black">Item Request</th>
+                  <th className="px-5 py-4 font-black">Customer</th>
+                  <th className="px-5 py-4 font-black">Duration</th>
+                  <th className="px-5 py-4 font-black">Location</th>
+                  <th className="px-5 py-4 font-black">Status</th>
+                  <th className="px-5 py-4 font-black">Remarks</th>
+                  <th className="px-5 py-4 text-right font-black">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-violet-100 dark:divide-violet-900/50">
+                {filteredRequests.map((request) => (
+                  <tr key={request._id} className="align-top transition hover:bg-violet-50/45 dark:hover:bg-white/5">
+                    <td className="px-5 py-5">
+                      <div className="max-w-[380px]">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-base font-black text-ink dark:text-white" title={request.itemName}>{request.itemName}</p>
+                          <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-black ${statusClass(request.status)}`}>
+                            {itemRequestStatusOptions.find(([value]) => value === request.status)?.[1] || request.status}
+                          </span>
+                        </div>
+                        <p className="mt-1 truncate text-xs font-bold uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45" title={request.category || "Category"}>{request.category || "Category"}</p>
+                        <p className="mt-3 truncate text-sm leading-6 text-stone-600 dark:text-stone-300" title={request.description || "-"}>{request.description || "-"}</p>
+                        <p className="mt-3 whitespace-nowrap text-xs font-semibold text-stone-400">Requested {formatDate(request.createdAt)}</p>
+                      </div>
+                    </td>
+                    <td className="px-5 py-5">
+                      <div className="max-w-[260px] space-y-2 text-sm">
+                        <div>
+                          <p className="truncate font-black text-ink dark:text-white" title={request.user?.name || "User"}>{request.user?.name || "User"}</p>
+                          <p className="truncate text-stone-500 dark:text-stone-400" title={request.user?.email || "-"}>{request.user?.email || "-"}</p>
+                        </div>
+                        <p className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-violet-50 px-3 py-1 text-xs font-black text-violet-700 dark:bg-white/5 dark:text-violet-100">
+                          <Phone className="h-3.5 w-3.5" /> {request.contactNumber || "-"}
+                        </p>
+                      </div>
+                    </td>
+                    <td className="px-5 py-5">
+                      <div className="inline-flex max-w-[210px] items-center gap-2 rounded-2xl border border-violet-100 bg-violet-50/70 px-3 py-2 text-sm font-bold text-violet-900 dark:border-violet-900/60 dark:bg-white/5 dark:text-violet-100">
+                        <CalendarCheck className="h-4 w-4 shrink-0" />
+                        <span className="truncate" title={request.expectedRentalDuration || "-"}>{request.expectedRentalDuration || "-"}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-5">
+                      <div className="inline-flex max-w-[180px] items-center gap-2 rounded-2xl border border-violet-100 bg-white px-3 py-2 text-sm font-bold text-stone-700 shadow-sm dark:border-violet-900/60 dark:bg-stone-900 dark:text-stone-200">
+                        <MapPin className="h-4 w-4 shrink-0 text-violet-600" />
+                        <span className="truncate" title={request.locationPincode || "-"}>{request.locationPincode || "-"}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-5">
+                      <select className="field min-w-[150px]" value={request.status} onChange={(event) => saveRequest(request, event.target.value)}>
+                        {itemRequestStatusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      </select>
+                      <p className="mt-2 whitespace-nowrap text-xs font-semibold text-stone-400">
+                        {request.reviewedAt ? `Reviewed ${formatDate(request.reviewedAt)} ${formatTime(request.reviewedAt)}` : "Not reviewed"}
+                      </p>
+                    </td>
+                    <td className="px-5 py-5">
+                      <input
+                        className="field min-w-[220px]"
+                        placeholder="Admin remarks"
+                        value={remarks[request._id] ?? request.remarks ?? ""}
+                        onChange={(event) => setRemarks((current) => ({ ...current, [request._id]: event.target.value }))}
+                      />
+                    </td>
+                    <td className="px-5 py-5 text-right">
+                      <button className="btn-primary whitespace-nowrap" type="button" onClick={() => saveRequest(request)}>
+                        Save
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-6">
+            <EmptyState title="No requested items" message="Customer item requests will appear here." />
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 

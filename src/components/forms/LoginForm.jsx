@@ -14,16 +14,15 @@ export default function LoginForm() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const dashboardPath = (role) => role === "admin" ? "/admin" : role === "delivery" ? "/delivery" : "/dashboard";
 
   const submit = async (event) => {
     event.preventDefault();
     setError("");
     setLoading(true);
     try {
-      const user = await login(form);
+      await login(form);
       showToast("Logged in successfully");
-      router.push(dashboardPath(user.role));
+      router.push(sessionStorage.getItem("open_request_item") === "1" ? "/?requestItem=1" : "/");
     } catch (err) {
       const message = err.response?.data?.message || "Unable to login";
       setError(message);
@@ -42,9 +41,9 @@ export default function LoginForm() {
     setError("");
     setLoading(true);
     try {
-      const user = await googleLogin(credential);
+      await googleLogin(credential);
       showToast("Logged in with Google");
-      router.push(dashboardPath(user.role));
+      router.push(sessionStorage.getItem("open_request_item") === "1" ? "/?requestItem=1" : "/");
     } catch (err) {
       const message = err.response?.data?.message || "Unable to login with Google";
       handleGoogleError(message);
