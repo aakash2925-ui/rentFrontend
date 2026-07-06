@@ -5,6 +5,7 @@ import { ToastProvider } from "@/context/ToastContext";
 import { CartProvider } from "@/context/CartContext";
 import Footer from "@/components/layout/Footer";
 import Navbar from "@/components/layout/Navbar";
+import SiteAnalyticsTracker from "@/components/analytics/SiteAnalyticsTracker";
 import { siteDescription, siteKeywords, siteLogo, siteName, siteUrl, socialProfiles } from "@/lib/siteMetadata";
 
 export const metadata = {
@@ -124,6 +125,7 @@ export default function RootLayout({ children }) {
           <ToastProvider>
             <AuthProvider>
               <CartProvider>
+                <SiteAnalyticsTracker />
                 <Navbar />
                 <main className="min-h-screen">{children}</main>
                 <Footer />
