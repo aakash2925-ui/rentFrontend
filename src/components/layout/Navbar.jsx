@@ -168,7 +168,6 @@ export default function Navbar() {
                   <span className="line-clamp-1 text-sm font-black">{item.title}</span>
                   <span className="mt-1 block text-xs font-semibold text-violet-950/55 dark:text-violet-100/55">{item.itemType || item.propertyType || "Rental item"}</span>
                 </span>
-                <span className="shrink-0 text-xs font-black text-meadow">₹{Number(item.rent || 0).toLocaleString()}</span>
               </button>
             ))}
           </div>
