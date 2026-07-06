@@ -5,24 +5,25 @@ import { ArrowRight, Sparkles } from "lucide-react";
 
 export default function HeroSection() {
   return (
-    <section className="relative isolate overflow-hidden bg-mist dark:bg-[#11071f]">
+    <section className="relative isolate flex min-h-[400px] overflow-hidden bg-mist dark:bg-[#11071f]">
       <div className="absolute inset-0 -z-10 bg-[#ead7ff] dark:bg-[#11071f]">
         <img
           src="/zasoota-home-bg.png"
           alt="Zasoota rent use return product background"
-          className="h-full w-full object-contain object-right opacity-38 dark:opacity-34 md:opacity-70 md:dark:opacity-62"
+          className="h-full w-full object-fill object-center opacity-48 dark:opacity-42 md:object-center md:opacity-88 md:dark:opacity-76"
         />
-        <div className="absolute inset-0 bg-white/32 dark:bg-[#11071f]/42 md:bg-white/18 md:dark:bg-[#11071f]/24" />
+        <div className="absolute inset-0 bg-gradient-to-r from-white/90 via-white/56 to-white/8 dark:from-[#11071f]/92 dark:via-[#11071f]/60 dark:to-[#11071f]/12" />
+        <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-mist via-mist/50 to-transparent dark:from-[#11071f] dark:via-[#11071f]/50" />
       </div>
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 md:grid-cols-[1.02fr_0.98fr] md:py-14">
-        <div className="animate-rise flex flex-col justify-center rounded-[1.75rem] bg-white/50 p-4 shadow-sm backdrop-blur-sm dark:bg-[#11071f]/50 md:bg-transparent md:p-0 md:shadow-none md:backdrop-blur-0 md:dark:bg-transparent">
+      <div className="mx-auto grid w-full max-w-7xl items-center gap-8 px-4 py-14 md:grid-cols-[1.02fr_0.98fr] md:py-16">
+        <div className="animate-rise flex flex-col justify-center">
           <p className="inline-flex w-fit items-center gap-2 rounded-full border border-violet-200 bg-white/75 px-3 py-1 text-xs font-black uppercase tracking-wide text-meadow shadow-sm backdrop-blur dark:border-violet-800 dark:bg-white/10 dark:text-violet-100">
             <Sparkles className="h-4 w-4" /> Zasoota
           </p>
-          <h1 className="mt-5 max-w-3xl text-5xl font-black leading-[1.02] text-ink drop-shadow-sm dark:text-stone-50 md:text-7xl">
+          <h1 className="mt-5 max-w-3xl text-5xl font-black leading-[1.02] text-ink drop-shadow-[0_2px_16px_rgba(255,255,255,0.78)] dark:text-stone-50 dark:drop-shadow-[0_2px_18px_rgba(17,7,31,0.9)] md:text-7xl">
             Access Over Ownership
           </h1>
-          <p className="mt-5 max-w-2xl text-lg font-semibold leading-8 text-violet-950/78 dark:text-violet-100/86 md:font-normal">
+          <p className="mt-5 max-w-2xl rounded-2xl bg-white/35 p-3 text-lg font-semibold leading-8 text-violet-950/86 shadow-sm backdrop-blur-[2px] dark:bg-[#11071f]/35 dark:text-violet-100/90 md:bg-transparent md:p-0 md:shadow-none md:backdrop-blur-0 md:font-normal">
             Rent projectors, speakers, cameras, luggage, fashion and more — delivered to your doorstep.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
