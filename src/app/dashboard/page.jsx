@@ -767,19 +767,6 @@ function ProfilePanel({ user }) {
     setDocumentErrors((current) => ({ ...current, [field]: "" }));
   };
 
-  const handleSelfieFile = async (file) => {
-    const preparedFile = await resizeKycImage(file);
-    const error = validateKycUploadFile(preparedFile);
-    if (error) {
-      showToast(error, "error");
-      return;
-    }
-    if (capturePreview) URL.revokeObjectURL(capturePreview);
-    setCaptureFile(preparedFile);
-    setCapturePreview(preparedFile.type.startsWith("image/") ? URL.createObjectURL(preparedFile) : "");
-    stopCamera();
-  };
-
   const removeDocumentFile = (field) => {
     if (documentPreviews[field]) URL.revokeObjectURL(documentPreviews[field]);
     setDocumentFiles((current) => ({ ...current, [field]: null }));
@@ -960,19 +947,6 @@ function ProfilePanel({ user }) {
                   <button className="btn-secondary" type="button" disabled={cameraActive} onClick={startCamera}>
                     <Camera className="h-4 w-4" /> Open camera
                   </button>
-                  <label className="btn-secondary cursor-pointer">
-                    <Upload className="h-4 w-4" /> Upload live photo
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept="image/jpeg,image/png,.jpg,.jpeg,.png"
-                      capture="user"
-                      onChange={(event) => {
-                        handleSelfieFile(event.target.files?.[0]);
-                        event.target.value = "";
-                      }}
-                    />
-                  </label>
                   {cameraActive && (
                     <button className="btn-primary" type="button" onClick={captureKycPhoto}>
                       <Upload className="h-4 w-4" /> Capture photo

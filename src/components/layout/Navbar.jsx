@@ -205,7 +205,7 @@ export default function Navbar() {
             <textarea className="field min-h-28 resize-y" value={requestForm.description} onChange={(event) => updateRequestForm("description", event.target.value)} placeholder="Share brand, model, use case, or any required specifications." />
           </label>
           <label className="space-y-2">
-            <span className="text-sm font-black">Rental Start Date <span className="text-red-500">*</span></span>
+            <span className="text-sm font-black">From <span className="text-red-500">*</span></span>
             <input
               className="field"
               required
@@ -216,7 +216,7 @@ export default function Navbar() {
             />
           </label>
           <label className="space-y-2">
-            <span className="text-sm font-black">Rental End Date <span className="text-red-500">*</span></span>
+            <span className="text-sm font-black">To <span className="text-red-500">*</span></span>
             <input
               className="field"
               required
