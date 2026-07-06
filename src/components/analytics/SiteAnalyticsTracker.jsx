@@ -6,11 +6,15 @@ import { useEffect } from "react";
 const visitorKey = "zasoota_visitor_id";
 
 const getVisitorId = () => {
-  const existing = localStorage.getItem(visitorKey);
-  if (existing) return existing;
-  const id = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  localStorage.setItem(visitorKey, id);
-  return id;
+  try {
+    const existing = localStorage.getItem(visitorKey);
+    if (existing) return existing;
+    const id = window.crypto?.randomUUID ? window.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(visitorKey, id);
+    return id;
+  } catch {
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
 };
 
 const apiUrl = () => {
@@ -25,24 +29,17 @@ export default function SiteAnalyticsTracker() {
     if (!pathname || pathname.startsWith("/admin") || pathname.startsWith("/delivery")) return;
 
     const query = window.location.search.replace(/^\?/, "");
-    const payload = JSON.stringify({
+    const payload = {
       visitorId: getVisitorId(),
       path: `${pathname}${query ? `?${query}` : ""}`,
       pageTitle: document.title,
       referrer: document.referrer
-    });
+    };
 
-    const url = apiUrl();
-    if (navigator.sendBeacon) {
-      const blob = new Blob([payload], { type: "application/json" });
-      navigator.sendBeacon(url, blob);
-      return;
-    }
-
-    fetch(url, {
+    fetch(apiUrl(), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: payload,
+      body: JSON.stringify(payload),
       keepalive: true
     }).catch(() => {});
   }, [pathname]);
