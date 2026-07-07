@@ -15,5 +15,5 @@ export const publicRoutes = [
   "/properties",
   "/contact",
   "/login",
-  "/register"
+  "/delivery-login"
 ];

@@ -1,40 +1,38 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Truck } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import ErrorMessage from "@/components/common/ErrorMessage";
 import { useToast } from "@/context/ToastContext";
 
 export default function RegisterForm() {
   const router = useRouter();
-  const { register } = useAuth();
+  const { login, logout } = useAuth();
   const { showToast } = useToast();
-  const [form, setForm] = useState({ name: "", email: "", password: "", phone: "" });
+  const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const submit = async (event) => {
     event.preventDefault();
-    if (!form.name.trim() || !form.email.trim() || !form.password.trim() || !form.phone.trim()) {
-      setError("All fields are required");
-      showToast("All fields are required", "error");
-      return;
-    }
-    if (form.password.length < 6) {
-      setError("Password must be at least 6 characters");
-      showToast("Password must be at least 6 characters", "error");
-      return;
-    }
-    setLoading(true);
     setError("");
+    setLoading(true);
+
     try {
-      const user = await register(form);
-      showToast("Account created");
-      router.push(user.role === "admin" ? "/admin" : "/dashboard");
+      const user = await login(form);
+      if (user?.role !== "delivery") {
+        logout();
+        const message = "This login is only for delivery partners.";
+        setError(message);
+        showToast(message, "error");
+        return;
+      }
+      showToast("Delivery login successful");
+      router.push("/delivery");
     } catch (err) {
-      const message = err.response?.data?.message || err.response?.data?.errors?.[0]?.msg || "Unable to register";
+      const message = err.response?.data?.message || "Unable to login";
       setError(message);
       showToast(message, "error");
     } finally {
@@ -43,18 +41,34 @@ export default function RegisterForm() {
   };
 
   return (
-    <form onSubmit={submit} className="mx-auto max-w-lg rounded-lg border border-stone-200 bg-white p-6 shadow-sm dark:border-stone-800 dark:bg-stone-900">
-      <h1 className="text-2xl font-black text-ink dark:text-stone-50">Register</h1>
-      <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">Create your Zasoota account to book rental items faster.</p>
+    <form onSubmit={submit} className="mx-auto max-w-md rounded-[1.5rem] border border-violet-100 bg-white p-6 shadow-soft dark:border-violet-900/70 dark:bg-stone-900">
+      <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-violet-100 text-violet-700 dark:bg-violet-950/70 dark:text-violet-100">
+        <Truck className="h-7 w-7" />
+      </div>
+      <h1 className="mt-4 text-center text-2xl font-black text-ink dark:text-stone-50">Delivery Login</h1>
+      <p className="mt-1 text-center text-sm text-stone-500 dark:text-stone-400">Access assigned pickups, deliveries, and return orders.</p>
       <div className="mt-5 grid gap-3">
         {error && <ErrorMessage message={error} />}
-        <input className="field" placeholder="Full name *" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        <input className="field" type="email" placeholder="Email *" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-        <input className="field" type="password" placeholder="Password *" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-        <input className="field" type="tel" placeholder="Phone *" required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-        <button className="btn-primary w-full" disabled={loading}>{loading ? "Creating account..." : "Register"}</button>
+        <input
+          className="field"
+          type="email"
+          placeholder="Email"
+          required
+          value={form.email}
+          onChange={(event) => setForm({ ...form, email: event.target.value })}
+        />
+        <input
+          className="field"
+          type="password"
+          placeholder="Password"
+          required
+          value={form.password}
+          onChange={(event) => setForm({ ...form, password: event.target.value })}
+        />
+        <button className="btn-primary w-full" disabled={loading}>
+          {loading ? "Signing in..." : "Login as Delivery Partner"}
+        </button>
       </div>
-      <p className="mt-4 text-center text-sm text-stone-500">Already registered? <Link className="font-bold text-meadow" href="/login">Login</Link></p>
     </form>
   );
 }

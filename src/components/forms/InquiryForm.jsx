@@ -252,7 +252,7 @@ export default function InquiryForm({ property }) {
     if (validationError) {
       setError(validationError);
       showToast(validationError, "error");
-      if (!user) router.push("/login");
+      if (!user) router.push(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`);
       return;
     }
     if (step === 1 && saveAddress) {
@@ -428,7 +428,7 @@ export default function InquiryForm({ property }) {
     if (validationError) {
       setError(validationError);
       showToast(validationError, "error");
-      if (!user) router.push("/login");
+      if (!user) router.push(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`);
       return;
     }
     setLoading(true);

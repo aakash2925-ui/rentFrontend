@@ -155,7 +155,7 @@ export default function AdminDashboardPage() {
   const [activeTask, setActiveTask] = useState("overview");
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [filters, setFilters] = useState({ search: "", status: "", type: "", role: "", dateFrom: "", dateTo: "" });
+  const [filters, setFilters] = useState({ search: "", status: "", type: "", role: "", authProvider: "", phoneVerified: "", dateFrom: "", dateTo: "" });
   const [logPagination, setLogPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
   const [bookingPagination, setBookingPagination] = useState({ page: 1, limit: 6, total: 0, totalPages: 1 });
   const [userPagination, setUserPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
@@ -466,7 +466,9 @@ export default function AdminDashboardPage() {
         page,
         limit: userPagination.limit,
         search: nextFilters.search || undefined,
-        role: nextFilters.role || undefined
+        role: nextFilters.role || undefined,
+        authProvider: nextFilters.authProvider || undefined,
+        phoneVerified: nextFilters.phoneVerified || undefined
       }
     });
     setData((current) => ({ ...current, users: response.users }));
@@ -1738,7 +1740,7 @@ function UsersPanel({ users, pagination, filters, setFilters, loadUsers, updateU
         .finally(() => setLoadingUsers(false));
     }, 250);
     return () => clearTimeout(timer);
-  }, [filters.search, filters.role, loadUsers]);
+  }, [filters.search, filters.role, filters.authProvider, filters.phoneVerified, loadUsers]);
 
   const changePage = async (page) => {
     setLoadingUsers(true);
@@ -1753,7 +1755,8 @@ function UsersPanel({ users, pagination, filters, setFilters, loadUsers, updateU
     { label: "Total Users", value: pagination.total || users.length, icon: Users, tone: "bg-violet-100 text-violet-700 dark:bg-violet-950/70 dark:text-violet-100" },
     { label: "Admins", value: users.filter((user) => user.role === "admin").length, icon: ShieldCheck, tone: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-100" },
     { label: "KYC Pending", value: users.filter((user) => ["pending", "otp_pending"].includes(user.kyc?.status)).length, icon: CalendarCheck, tone: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-100" },
-    { label: "KYC Approved", value: users.filter((user) => user.kyc?.status === "approved").length, icon: PackageCheck, tone: "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-950/50 dark:text-fuchsia-100" }
+    { label: "KYC Approved", value: users.filter((user) => user.kyc?.status === "approved").length, icon: PackageCheck, tone: "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-950/50 dark:text-fuchsia-100" },
+    { label: "Mobile Verified", value: users.filter((user) => user.isPhoneVerified).length, icon: Phone, tone: "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-100" }
   ];
 
   return (
@@ -1765,7 +1768,7 @@ function UsersPanel({ users, pagination, filters, setFilters, loadUsers, updateU
             <h2 className="mt-1 text-2xl font-black">User management</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-violet-100/75">Review customer accounts, approve KYC, and inspect identity photos from one clean workspace.</p>
           </div>
-          <button className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white px-4 py-3 text-sm font-black text-violet-800 shadow-soft transition hover:-translate-y-0.5 hover:shadow-glow" onClick={() => exportCsv("users-page.csv", users.map((user) => ({ name: user.name, email: user.email, phone: user.phone, role: user.role, kyc: user.kyc?.status || "not_submitted", lastLogin: user.lastLoginAt || "" })))}>
+          <button className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white px-4 py-3 text-sm font-black text-violet-800 shadow-soft transition hover:-translate-y-0.5 hover:shadow-glow" onClick={() => exportCsv("users-page.csv", users.map((user) => ({ name: user.name, email: user.email, phone: user.phone, phoneNumber: user.phoneNumber, phoneVerified: user.isPhoneVerified ? "yes" : "no", authProvider: user.authProvider, role: user.role, kyc: user.kyc?.status || "not_submitted", lastLogin: user.lastLoginAt || "" })))}>
             Export CSV
           </button>
         </div>
@@ -1788,7 +1791,7 @@ function UsersPanel({ users, pagination, filters, setFilters, loadUsers, updateU
       </div>
 
       <div className="rounded-[1.35rem] border border-violet-100 bg-white/90 p-4 shadow-sm dark:border-violet-900/70 dark:bg-white/10">
-        <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+        <div className="grid gap-3 md:grid-cols-[1fr_180px_180px_180px]">
           <label className="flex items-center gap-2 rounded-2xl border border-violet-100 bg-mist/70 px-4 py-3 dark:border-violet-900/70 dark:bg-stone-950/50">
             <Users className="h-4 w-4 shrink-0 text-violet-500" />
             <input className="w-full bg-transparent text-sm font-semibold outline-none placeholder:text-violet-950/45 dark:placeholder:text-violet-100/45" placeholder="Search by name, email, or phone" value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} />
@@ -1799,6 +1802,17 @@ function UsersPanel({ users, pagination, filters, setFilters, loadUsers, updateU
             <option value="owner">Owners</option>
             <option value="admin">Admins</option>
             <option value="delivery">Delivery</option>
+          </select>
+          <select className="field" value={filters.authProvider} onChange={(event) => setFilters((current) => ({ ...current, authProvider: event.target.value }))}>
+            <option value="">All login types</option>
+            <option value="mobile">Mobile OTP</option>
+            <option value="local">Email</option>
+            <option value="google">Google</option>
+          </select>
+          <select className="field" value={filters.phoneVerified} onChange={(event) => setFilters((current) => ({ ...current, phoneVerified: event.target.value }))}>
+            <option value="">All phones</option>
+            <option value="verified">Phone verified</option>
+            <option value="unverified">Phone unverified</option>
           </select>
         </div>
       </div>
@@ -1836,7 +1850,10 @@ function UsersPanel({ users, pagination, filters, setFilters, loadUsers, updateU
                     <td className="px-5 py-4">
                       <div className="grid gap-1 text-violet-950/65 dark:text-violet-100/70">
                         <span className="flex min-w-0 items-center gap-2"><Mail className="h-4 w-4 shrink-0 text-meadow" /><span className="max-w-[260px] break-words">{user.email}</span></span>
-                        <span className="flex min-w-0 items-center gap-2"><Phone className="h-4 w-4 shrink-0 text-meadow" /><span className="max-w-[220px] break-words">{user.phone || "-"}</span></span>
+                        <span className="flex min-w-0 items-center gap-2"><Phone className="h-4 w-4 shrink-0 text-meadow" /><span className="max-w-[220px] break-words">{user.phoneNumber || user.phone || "-"}</span></span>
+                        <span className={`w-fit rounded-full px-2 py-0.5 text-[11px] font-black ${user.isPhoneVerified ? "bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-200" : "bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-200"}`}>
+                          {user.isPhoneVerified ? "Phone verified" : "Phone unverified"} · {user.authProvider || "local"}
+                        </span>
                         <span className="mt-1 text-xs font-black uppercase tracking-wide text-violet-950/40 dark:text-violet-100/40">
                           Last login: {user.lastLoginAt ? `${formatDate(user.lastLoginAt)} ${formatTime(user.lastLoginAt)}` : "Never"}
                         </span>

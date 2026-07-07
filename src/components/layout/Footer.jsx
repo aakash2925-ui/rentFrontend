@@ -27,7 +27,7 @@ export default function Footer() {
         <div className="flex flex-col gap-2 text-sm">
           <strong className="text-ink dark:text-stone-100">Account</strong>
           <Link href="/login" className="text-violet-950/65 hover:text-meadow dark:text-violet-100/70">Login</Link>
-          <Link href="/register" className="text-violet-950/65 hover:text-meadow dark:text-violet-100/70">Register</Link>
+          <Link href="/delivery-login" className="text-violet-950/65 hover:text-meadow dark:text-violet-100/70">Delivery Login</Link>
           <Link href="/contact" className="text-violet-950/65 hover:text-meadow dark:text-violet-100/70">Contact</Link>
           <Link href="/terms-and-conditions" className="text-violet-950/65 hover:text-meadow dark:text-violet-100/70">Terms</Link>
           <Link href="/privacy-policy" className="text-violet-950/65 hover:text-meadow dark:text-violet-100/70">Privacy</Link>

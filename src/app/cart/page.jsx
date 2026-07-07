@@ -62,6 +62,7 @@ function loadRazorpay() {
 const blankAddress = (user) => ({
   fullName: user?.name || "",
   mobileNumber: user?.phone || "",
+  email: user?.email || "",
   houseFlatNo: "",
   streetArea: "",
   landmark: "",
@@ -72,7 +73,7 @@ const blankAddress = (user) => ({
 
 export default function CartPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { items, count, updateItem, removeItem, clearCart } = useCart();
   const { showToast } = useToast();
   const today = useMemo(() => toDateInputValue(new Date()), []);
@@ -113,7 +114,8 @@ export default function CartPage() {
     setAddressForm((current) => ({
       ...current,
       fullName: current.fullName || user.name || "",
-      mobileNumber: current.mobileNumber || user.phone || ""
+      mobileNumber: current.mobileNumber || user.phone || "",
+      email: current.email || user.email || ""
     }));
     api.get("/auth/addresses")
       .then(({ data }) => setAddresses(data.addresses || []))
@@ -157,6 +159,7 @@ export default function CartPage() {
   const addressPayload = useMemo(() => ({
     fullName: addressForm.fullName,
     mobileNumber: addressForm.mobileNumber,
+    email: addressForm.email,
     houseFlatNo: addressForm.houseFlatNo,
     streetArea: addressForm.streetArea,
     landmark: addressForm.landmark,
@@ -191,6 +194,8 @@ export default function CartPage() {
   const validateAddress = useCallback(() => {
     if (!addressForm.fullName.trim()) return "Full name is required.";
     if (!addressForm.mobileNumber.trim()) return "Mobile number is required.";
+    if (!addressForm.email.trim()) return "Email is required.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addressForm.email.trim())) return "Enter a valid email address.";
     if (!addressForm.houseFlatNo.trim()) return "House/flat number is required.";
     if (!addressForm.streetArea.trim()) return "Street/area is required.";
     if (!addressForm.city.trim()) return "City is required.";
@@ -278,11 +283,39 @@ export default function CartPage() {
       if (!user) router.push("/login");
       return;
     }
+    let nextAddressPayload = addressPayload;
+    if (step === 1) {
+      try {
+        const { data } = await api.put("/auth/checkout-contact", {
+          fullName: addressForm.fullName,
+          mobileNumber: addressForm.mobileNumber,
+          email: addressForm.email
+        });
+        updateUser(data.user);
+        nextAddressPayload = {
+          ...addressPayload,
+          fullName: data.user.name || addressPayload.fullName,
+          mobileNumber: data.user.phoneNumber || data.user.phone || addressPayload.mobileNumber,
+          email: data.user.email || addressPayload.email
+        };
+        setAddressForm((current) => ({
+          ...current,
+          fullName: nextAddressPayload.fullName,
+          mobileNumber: nextAddressPayload.mobileNumber,
+          email: nextAddressPayload.email
+        }));
+      } catch (err) {
+        const text = err.response?.data?.message || "Unable to save contact details";
+        setError(text);
+        showToast(text, "error");
+        return;
+      }
+    }
     if (step === 1 && saveAddress) {
       try {
         const request = addressMode === "edit" && selectedAddressId
-          ? api.put(`/auth/addresses/${selectedAddressId}`, addressPayload)
-          : api.post("/auth/addresses", addressPayload);
+          ? api.put(`/auth/addresses/${selectedAddressId}`, nextAddressPayload)
+          : api.post("/auth/addresses", nextAddressPayload);
         const { data } = await request;
         setAddresses(data.addresses || []);
         setSaveAddress(false);
@@ -309,6 +342,7 @@ export default function CartPage() {
     setAddressForm({
       fullName: address.fullName || "",
       mobileNumber: address.mobileNumber || "",
+      email: address.email || user?.email || "",
       houseFlatNo: address.houseFlatNo || "",
       streetArea: address.streetArea || "",
       landmark: address.landmark || "",
@@ -397,6 +431,7 @@ export default function CartPage() {
     property: item._id,
     fullName: addressForm.fullName,
     mobileNumber: addressForm.mobileNumber,
+    email: addressForm.email,
     phone: addressForm.mobileNumber,
     startDate: item.startDate,
     endDate: item.endDate,
@@ -435,7 +470,7 @@ export default function CartPage() {
         name: "Zasoota",
         description: item.title,
         order_id: data.order.id,
-        prefill: { name: addressForm.fullName || user?.name, email: user?.email, contact: addressForm.mobileNumber },
+        prefill: { name: addressForm.fullName || user?.name, email: addressForm.email || user?.email, contact: addressForm.mobileNumber },
         theme: { color: "#6d28d9" },
         handler: async (response) => {
           try {
@@ -766,7 +801,7 @@ function AddressStep({ addresses, addressForm, setAddressForm, fillAddress, star
             <article key={address._id} className={`rounded-2xl border p-4 transition ${selectedAddressId === address._id ? "border-meadow bg-meadow/10 shadow-soft" : "border-violet-100 bg-mist/70 dark:border-violet-900/70 dark:bg-white/10"}`}>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
-                  <p className="break-words font-black text-ink dark:text-white">{address.fullName} · {address.mobileNumber}</p>
+                  <p className="break-words font-black text-ink dark:text-white">{[address.fullName, address.mobileNumber, address.email].filter(Boolean).join(" · ")}</p>
                   <p className="mt-1 break-words text-sm leading-6 text-violet-950/65 dark:text-violet-100/70">{[address.houseFlatNo, address.streetArea, address.landmark, address.city, address.state, address.pincode].filter(Boolean).join(", ")}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -779,9 +814,10 @@ function AddressStep({ addresses, addressForm, setAddressForm, fillAddress, star
           ))}
         </div>
       )}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Field label="Full Name" value={addressForm.fullName} onChange={(value) => update("fullName", value)} />
         <Field label="Mobile Number" value={addressForm.mobileNumber} onChange={(value) => update("mobileNumber", value)} />
+        <Field label="Email" type="email" value={addressForm.email} onChange={(value) => update("email", value)} />
         <Field label="House/Flat No." value={addressForm.houseFlatNo} onChange={(value) => update("houseFlatNo", value)} />
         <Field label="Street/Area" value={addressForm.streetArea} onChange={(value) => update("streetArea", value)} />
         <Field label="Landmark" optional value={addressForm.landmark} onChange={(value) => update("landmark", value)} />
@@ -980,11 +1016,11 @@ function KycStep({ user }) {
   );
 }
 
-function Field({ label, optional = false, value, onChange }) {
+function Field({ label, optional = false, type = "text", value, onChange }) {
   return (
     <label className="space-y-2">
       <span className="text-sm font-black text-violet-950 dark:text-white">{label} {!optional && <span className="text-clay">*</span>}</span>
-      <input className="field" value={value} onChange={(event) => onChange(event.target.value)} />
+      <input className="field" type={type} value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
 }

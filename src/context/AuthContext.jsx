@@ -11,6 +11,7 @@ export function AuthProvider({ children }) {
 
   const clearSession = () => {
     localStorage.removeItem("rent_token");
+    localStorage.removeItem("rent_refresh_token");
     localStorage.removeItem("rent_user");
     setUser(null);
   };
@@ -46,6 +47,7 @@ export function AuthProvider({ children }) {
   const login = async (payload) => {
     const { data } = await api.post("/auth/login", payload);
     localStorage.setItem("rent_token", data.token);
+    if (data.refreshToken) localStorage.setItem("rent_refresh_token", data.refreshToken);
     persistSession(data.user);
     return data.user;
   };
@@ -58,6 +60,7 @@ export function AuthProvider({ children }) {
     }
     const { data } = await api.post("/auth/google", { credential, sessionId });
     localStorage.setItem("rent_token", data.token);
+    if (data.refreshToken) localStorage.setItem("rent_refresh_token", data.refreshToken);
     persistSession(data.user);
     return data.user;
   };
@@ -65,6 +68,20 @@ export function AuthProvider({ children }) {
   const register = async (payload) => {
     const { data } = await api.post("/auth/register", payload);
     localStorage.setItem("rent_token", data.token);
+    if (data.refreshToken) localStorage.setItem("rent_refresh_token", data.refreshToken);
+    persistSession(data.user);
+    return data.user;
+  };
+
+  const sendMobileOtp = async (payload) => {
+    const { data } = await api.post("/auth/send-otp", payload);
+    return data;
+  };
+
+  const verifyMobileOtp = async (payload) => {
+    const { data } = await api.post("/auth/verify-otp", payload);
+    localStorage.setItem("rent_token", data.token);
+    if (data.refreshToken) localStorage.setItem("rent_refresh_token", data.refreshToken);
     persistSession(data.user);
     return data.user;
   };
@@ -77,7 +94,7 @@ export function AuthProvider({ children }) {
     persistSession(nextUser);
   };
 
-  const value = useMemo(() => ({ user, loading, login, googleLogin, register, logout, updateUser }), [user, loading]);
+  const value = useMemo(() => ({ user, loading, login, googleLogin, register, sendMobileOtp, verifyMobileOtp, logout, updateUser }), [user, loading]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

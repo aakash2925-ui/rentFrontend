@@ -27,7 +27,7 @@ export default function AddToCartButton({ property, className = "", compact = fa
     event.stopPropagation();
     if (!loading && !user) {
       showToast("Please login to add items to cart", "error");
-      router.push("/login");
+      router.push(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`);
       return;
     }
     if (inCart) {
