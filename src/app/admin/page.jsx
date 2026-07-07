@@ -60,6 +60,8 @@ const bookingStatusLabel = (status) => ({
   closed: "Cancelled"
 }[status] || status);
 
+const bookingDisplayStatus = (booking) => booking?.cancelledBy === "user" ? "Cancelled by User" : bookingStatusLabel(booking?.status);
+
 const orderTimelineLabel = (status) => orderTimelineOptions.find(([value]) => value === status)?.[1] || "Order Received";
 
 const deliveryStatusLabels = {
@@ -1257,7 +1259,7 @@ function BookingsPanel({ bookings, deliveryBoys, deliveryAssignments, pagination
       id: booking._id,
       item: booking.property?.title,
       user: booking.user?.name,
-      status: bookingStatusLabel(booking.status),
+      status: bookingDisplayStatus(booking),
       orderStatus: orderTimelineLabel(booking.orderStatus || "order_received"),
       payment: booking.paymentStatus,
       amount
@@ -1283,6 +1285,7 @@ function BookingsPanel({ bookings, deliveryBoys, deliveryAssignments, pagination
           const assignment = deliveryAssignments.find((item) => String(item.booking?._id || item.booking) === String(booking._id));
           const customerKyc = kycBadge(booking.user?.kyc?.status);
           const confirmationLocked = needsKycForConfirmation(booking);
+          const cancelledByUser = booking.cancelledBy === "user";
           return (
             <article key={booking._id} className="overflow-hidden rounded-2xl border border-violet-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-soft dark:border-violet-900/70 dark:bg-stone-950/80">
               <div className="border-b border-violet-100 bg-gradient-to-r from-violet-50 via-white to-lavender/40 p-4 dark:border-violet-900/70 dark:from-violet-950/50 dark:via-stone-950 dark:to-violet-950/30">
@@ -1330,6 +1333,19 @@ function BookingsPanel({ bookings, deliveryBoys, deliveryAssignments, pagination
                     </div>
                   </div>
                 </div>
+                {cancelledByUser && (
+                  <div className="mt-4 rounded-2xl border border-red-100 bg-red-50/80 p-4 text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-100">
+                    <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-wide">Status</p>
+                        <p className="mt-1 text-base font-black">{bookingDisplayStatus(booking)}</p>
+                      </div>
+                      <p className="text-sm font-bold sm:text-right">Cancelled {formatDate(booking.cancelledAt)} {formatTime(booking.cancelledAt)}</p>
+                    </div>
+                    <p className="mt-3 text-xs font-black uppercase tracking-wide">User cancellation reason</p>
+                    <p className="mt-1 break-words text-sm font-semibold leading-6">{booking.cancellationReason || "No reason provided"}</p>
+                  </div>
+                )}
                 <div className="mt-4 rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50/80 via-white to-fuchsia-50/70 p-4 shadow-sm dark:border-violet-900/70 dark:from-violet-950/40 dark:via-stone-950 dark:to-fuchsia-950/20">
                   <div className="mb-4 flex flex-col justify-between gap-1 sm:flex-row sm:items-center">
                     <div>

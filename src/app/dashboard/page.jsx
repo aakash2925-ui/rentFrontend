@@ -64,9 +64,12 @@ const bookingFilters = [
 const filterBooking = (booking, filter) => {
   const status = booking.status;
   const payment = booking.paymentStatus;
+  const cancelledByUser = booking.cancelledBy === "user";
+  const cancelled = cancelledByUser || status === "closed" || payment === "cancelled" || payment === "failed";
+  if (filter === "cancelled") return cancelled;
+  if (cancelled) return filter === "all";
   if (filter === "pending") return status === "pending" || payment === "pending";
   if (filter === "completed") return ["returned", "closed", "rented"].includes(status) || payment === "paid";
-  if (filter === "cancelled") return payment === "cancelled" || payment === "failed";
   if (filter === "active") return ["contacted", "rented"].includes(status) || payment === "paid";
   return true;
 };
@@ -103,7 +106,7 @@ const orderTrackerSteps = [
 ];
 
 const bookingTrackerIndex = (booking) => {
-  if (booking.paymentStatus === "failed" || booking.paymentStatus === "cancelled" || booking.status === "closed") return -1;
+  if (booking.cancelledBy === "user" || booking.paymentStatus === "failed" || booking.paymentStatus === "cancelled" || booking.status === "closed") return -1;
   const byOrderStatus = orderTrackerSteps.findIndex((step) => step.status === booking.orderStatus);
   if (byOrderStatus >= 0) return byOrderStatus;
   if (booking.status === "returned") return orderTrackerSteps.length - 1;
@@ -243,6 +246,19 @@ export default function UserDashboardPage() {
     }
   };
 
+  const cancelBooking = async (bookingId, reason) => {
+    try {
+      const { data } = await api.put(`/bookings/${bookingId}/cancel`, { reason });
+      setBookings((items) => items.map((item) => item._id === bookingId ? data.booking : item));
+      showToast(data.message || "Booking cancelled successfully");
+      return data.booking;
+    } catch (err) {
+      const message = err.response?.data?.message || "Unable to cancel booking";
+      showToast(message, "error");
+      throw new Error(message);
+    }
+  };
+
   const stats = useMemo(() => ({
     bookings: bookings.length,
     active: bookings.filter((item) => filterBooking(item, "active")).length,
@@ -250,7 +266,7 @@ export default function UserDashboardPage() {
     pending: bookings.filter((item) => filterBooking(item, "pending")).length
   }), [bookings, wishlist]);
 
-  const panelProps = { user, bookings, inquiries, wishlist, savedAddresses, setSavedAddresses, properties, ownerInquiries, updateStatus, removeWishlist, stats, onNavigate: selectSection };
+  const panelProps = { user, bookings, inquiries, wishlist, savedAddresses, setSavedAddresses, properties, ownerInquiries, updateStatus, removeWishlist, cancelBooking, stats, onNavigate: selectSection };
 
   return (
     <ProtectedRoute>
@@ -335,7 +351,7 @@ function OverviewPanel({ wishlist, stats, onNavigate }) {
   );
 }
 
-function BookingsPanel({ bookings }) {
+function BookingsPanel({ bookings, cancelBooking }) {
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
   const visible = bookings.filter((booking) => filterBooking(booking, filter)).filter((booking) => {
@@ -360,15 +376,16 @@ function BookingsPanel({ bookings }) {
         </div>
       </div>
       <div className="grid gap-4">
-        {visible.map((booking) => <BookingCard key={booking._id} booking={booking} />)}
+        {visible.map((booking) => <BookingCard key={booking._id} booking={booking} onCancelBooking={cancelBooking} />)}
         {!visible.length && <EmptyState title="No matching bookings" message="Try a different filter or search term." actionHref="/items" actionLabel="Browse rentals" />}
       </div>
     </div>
   );
 }
 
-function BookingCard({ booking, compact = false }) {
+function BookingCard({ booking, compact = false, onCancelBooking }) {
   const [trackingOpen, setTrackingOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const itemHref = booking.property?._id ? `/items/${booking.property._id}` : "";
   const title = booking.property?.title || "Rental item";
   const deliveryDate = booking.deliveryDate || booking.startDate;
@@ -376,6 +393,13 @@ function BookingCard({ booking, compact = false }) {
   const deliveryWindow = booking.deliveryEta || deliverySlotWindows[booking.deliverySpeed] || "Within 24 hours";
   const trackerIndex = bookingTrackerIndex(booking);
   const cancelled = trackerIndex === -1;
+  const cancelledByUser = booking.cancelledBy === "user";
+  const canCancel = Boolean(onCancelBooking)
+    && ["pending", "contacted"].includes(booking.status)
+    && !["cancelled", "failed", "refunded"].includes(booking.paymentStatus)
+    && booking.canUserCancel !== false;
+  const bookingStatusText = cancelledByUser ? "Cancelled by User" : statusLabel(booking.status);
+  const bookingStatusClass = cancelledByUser ? "bg-red-50 text-red-700" : statusTone[booking.status];
 
   return (
     <article className="min-w-0 overflow-hidden rounded-[1.35rem] border border-violet-100 bg-white shadow-sm transition hover:shadow-soft dark:border-violet-900/70 dark:bg-stone-950/70">
@@ -394,7 +418,7 @@ function BookingCard({ booking, compact = false }) {
             </p>
           </div>
           <div className="flex min-w-0 flex-wrap gap-2 md:max-w-[45%] md:justify-end">
-            <StatusPill label={statusLabel(booking.status)} className={statusTone[booking.status]} />
+            <StatusPill label={bookingStatusText} className={bookingStatusClass} />
             <StatusPill label={`payment ${booking.paymentStatus}`} />
           </div>
         </div>
@@ -424,11 +448,24 @@ function BookingCard({ booking, compact = false }) {
           </div>
         </div>
 
+        {cancelledByUser && (
+          <div className="mt-4 rounded-2xl border border-red-100 bg-red-50/80 p-4 text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-100">
+            <p className="text-xs font-black uppercase tracking-wide">Cancelled by user</p>
+            <p className="mt-1 text-sm font-semibold">Reason: {booking.cancellationReason || "Not provided"}</p>
+            <p className="mt-1 text-xs font-bold opacity-80">Cancelled on {formatDateTime(booking.cancelledAt)}</p>
+          </div>
+        )}
+
         {!compact && (
           <div className="mt-4 flex flex-wrap gap-2">
             <button type="button" className="btn-primary" onClick={() => setTrackingOpen(true)}>
               <Clock3 className="h-4 w-4" /> Track order
             </button>
+            {canCancel && (
+              <button type="button" className="btn-secondary border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900/60 dark:text-red-200 dark:hover:bg-red-950/40" onClick={() => setCancelOpen(true)}>
+                <X className="h-4 w-4" /> Cancel Booking
+              </button>
+            )}
             {itemHref && <Link href={itemHref} className="btn-secondary">View item</Link>}
             <Link href="/contact" className="btn-secondary">Get support</Link>
           </div>
@@ -445,7 +482,112 @@ function BookingCard({ booking, compact = false }) {
           trackerIndex={trackerIndex}
         />
       )}
+      {cancelOpen && (
+        <CancelBookingModal
+          booking={booking}
+          onCancelBooking={onCancelBooking}
+          onClose={() => setCancelOpen(false)}
+        />
+      )}
     </article>
+  );
+}
+
+function CancelBookingModal({ booking, onCancelBooking, onClose }) {
+  const defaultReasons = [
+    "Booked by mistake",
+    "Dates are no longer suitable",
+    "Found another item",
+    "Delivery location changed",
+    "Payment or budget issue",
+    "Other"
+  ];
+  const [reason, setReason] = useState(defaultReasons[0]);
+  const [otherReason, setOtherReason] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const title = booking.property?.title || "Rental item";
+  const showOtherReason = reason === "Other";
+
+  const confirmCancel = async () => {
+    const trimmed = showOtherReason ? otherReason.trim() : reason.trim();
+    if (!trimmed) {
+      setError("Please enter a cancellation reason.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      await onCancelBooking(booking._id, trimmed);
+      onClose();
+    } catch (err) {
+      setError(err.message || "Unable to cancel booking");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[80] grid place-items-center bg-black/55 px-4 py-6 backdrop-blur-sm" role="dialog" aria-modal="true">
+      <div className="w-full max-w-xl overflow-hidden rounded-[1.5rem] border border-violet-100 bg-white shadow-2xl dark:border-violet-900/70 dark:bg-stone-950">
+        <div className="flex items-start justify-between gap-4 border-b border-violet-100 bg-gradient-to-r from-violet-50 via-white to-red-50 p-5 dark:border-violet-900/70 dark:from-violet-950/50 dark:via-stone-950 dark:to-red-950/30">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-red-600 dark:text-red-300">Confirm cancellation</p>
+            <h3 className="mt-1 text-xl font-black text-ink dark:text-white">Cancel this booking?</h3>
+          </div>
+          <button type="button" className="rounded-full p-2 text-violet-950/60 transition hover:bg-white hover:text-ink dark:text-violet-100/70 dark:hover:bg-white/10" onClick={onClose} aria-label="Close cancellation popup">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="space-y-4 p-5">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <InfoCard icon={Package} label="Item" value={title} />
+            <InfoCard icon={CalendarDays} label="Rental dates" value={`${formatDate(booking.startDate)} - ${formatDate(booking.endDate)}`} />
+            <InfoCard icon={IndianRupee} label="Amount" value={`₹${Number(booking.finalAmount || booking.totalAmount || 0).toLocaleString()}`} />
+            <InfoCard icon={CreditCard} label="Payment" value={booking.paymentStatus || "pending"} />
+          </div>
+          <div>
+            <p className="text-sm font-black text-ink dark:text-white">Cancellation reason <span className="text-red-500">*</span></p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {defaultReasons.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className={`rounded-2xl border px-4 py-3 text-left text-sm font-bold transition ${reason === item ? "border-red-300 bg-red-50 text-red-700 shadow-sm dark:border-red-800 dark:bg-red-950/40 dark:text-red-100" : "border-violet-100 bg-mist/60 text-violet-950/70 hover:border-violet-200 hover:bg-violet-50 dark:border-violet-900/70 dark:bg-white/10 dark:text-violet-100/75 dark:hover:bg-white/15"}`}
+                  onClick={() => {
+                    setReason(item);
+                    if (error) setError("");
+                  }}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </div>
+          {showOtherReason && (
+            <label className="block">
+              <span className="text-sm font-black text-ink dark:text-white">Write your reason <span className="text-red-500">*</span></span>
+              <textarea
+                className="mt-2 min-h-32 w-full resize-y rounded-2xl border border-violet-100 bg-mist/70 px-4 py-3 text-sm font-semibold outline-none transition placeholder:text-violet-950/40 focus:border-violet-400 focus:ring-4 focus:ring-violet-100 dark:border-violet-900/70 dark:bg-white/10 dark:placeholder:text-violet-100/45 dark:focus:ring-violet-950/70"
+                placeholder="Tell us why you want to cancel this booking"
+                value={otherReason}
+                onChange={(event) => {
+                  setOtherReason(event.target.value);
+                  if (error) setError("");
+                }}
+              />
+            </label>
+          )}
+          {error && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700 dark:bg-red-950/40 dark:text-red-200">{error}</p>}
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button type="button" className="btn-secondary justify-center" onClick={onClose} disabled={submitting}>Keep Booking</button>
+            <button type="button" className="btn-primary justify-center bg-red-600 hover:bg-red-700" onClick={confirmCancel} disabled={submitting}>
+              {submitting ? "Cancelling..." : "Confirm Cancellation"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -498,7 +640,7 @@ function OrderTrackingModal({ booking, cancelled, deliveryDate, deliveryLabel, d
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <InfoCard icon={Truck} label="Delivery" value={`${formatDate(deliveryDate)} · ${deliveryWindow}`} />
-          <InfoCard icon={Package} label="Current status" value={cancelled ? "Stopped" : statusLabel(booking.status)} />
+          <InfoCard icon={Package} label="Current status" value={cancelled ? "Cancelled" : statusLabel(booking.status)} valueClassName={cancelled ? "text-red-600 dark:text-red-300" : ""} />
         </div>
         <p className="mt-3 break-words rounded-2xl bg-mist/70 px-4 py-3 text-sm font-semibold text-violet-950/65 dark:bg-white/10 dark:text-violet-100/70">
           {deliveryLabel} · {booking.deliveryAddress || "Address shared"}
@@ -1276,14 +1418,14 @@ function MetricCard({ icon: Icon, label, value, onClick }) {
   );
 }
 
-function InfoCard({ icon: Icon, label, value }) {
+function InfoCard({ icon: Icon, label, value, valueClassName = "" }) {
   return (
     <div className="min-w-0 overflow-hidden rounded-2xl border border-violet-100 bg-white p-4 dark:border-violet-900/70 dark:bg-stone-950/70">
       <div className="flex min-w-0 items-center gap-3">
         {Icon && <Icon className="h-5 w-5 shrink-0 text-meadow" />}
         <div className="min-w-0 flex-1">
           <p className="text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">{label}</p>
-          <p className="mt-1 max-w-full break-words text-sm font-black leading-snug text-ink dark:text-white">{value}</p>
+          <p className={`mt-1 max-w-full break-words text-sm font-black leading-snug ${valueClassName || "text-ink dark:text-white"}`}>{value}</p>
         </div>
       </div>
     </div>
