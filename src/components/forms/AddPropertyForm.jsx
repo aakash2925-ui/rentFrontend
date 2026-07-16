@@ -93,18 +93,41 @@ export default function AddPropertyForm({ itemId }) {
 
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
-  const addServicePin = (pin = pinInput) => {
-    const value = String(pin || "").trim();
-    if (!/^\d{6}$/.test(value)) {
-      showToast("Enter a valid 6-digit PIN code", "error");
-      return;
+const addServicePin = (pins = pinInput) => {
+  const pinList = String(pins || "")
+    .split(/[\s,]+/) // comma, space, or newline
+    .map((pin) => pin.trim())
+    .filter(Boolean);
+
+  const validPins = [];
+  const invalidPins = [];
+
+  pinList.forEach((pin) => {
+    if (/^\d{6}$/.test(pin)) {
+      validPins.push(pin);
+    } else {
+      invalidPins.push(pin);
     }
-    setForm((current) => {
-      if (current.serviceablePincodes.includes(value)) return current;
-      return { ...current, serviceablePincodes: [...current.serviceablePincodes, value] };
-    });
-    setPinInput("");
-  };
+  });
+
+  setForm((current) => ({
+    ...current,
+    serviceablePincodes: [
+      ...new Set([...current.serviceablePincodes, ...validPins]),
+    ],
+  }));
+
+  if (invalidPins.length) {
+    showToast(
+      `Invalid PIN(s): ${invalidPins.join(", ")}`,
+      "error"
+    );
+  } else if (validPins.length) {
+    showToast(`${validPins.length} PIN code(s) added`, "success");
+  }
+
+  setPinInput("");
+};
 
   const removeServicePin = (pin) => {
     setForm((current) => ({ ...current, serviceablePincodes: current.serviceablePincodes.filter((item) => item !== pin) }));
@@ -280,7 +303,24 @@ export default function AddPropertyForm({ itemId }) {
         </Field>
         <div className="md:col-span-2 rounded-2xl border border-violet-100 bg-mist/70 p-4 dark:border-violet-900/70 dark:bg-white/10">
           <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-            <input className="field" inputMode="numeric" maxLength={6} placeholder="Add serviceable PIN code" value={pinInput} onChange={(event) => setPinInput(event.target.value.replace(/\D/g, "").slice(0, 6))} />
+           <input
+  className="field"
+  placeholder="560001,560002,560003"
+  value={pinInput}
+  onChange={(event) => setPinInput(event.target.value)}
+  onPaste={(event) => {
+    event.preventDefault();
+
+    const pasted = event.clipboardData.getData("text");
+    addServicePin(pasted);
+  }}
+  onKeyDown={(event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addServicePin();
+    }
+  }}
+/>
             <button className="btn-primary" type="button" onClick={() => addServicePin()}>Add PIN</button>
           </div>
           <input className="field mt-3" placeholder="Search PIN codes" value={pinSearch} onChange={(event) => setPinSearch(event.target.value)} />
