@@ -4,9 +4,38 @@ import { SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 
+const RENT_MIN = 0;
+const RENT_MAX = 50000;
+const RENT_STEP = 100;
+const money = (value) => `₹${Number(value || 0).toLocaleString("en-IN")}`;
+
 export default function PropertyFilterSidebar({ filters, setFilters, applyFilters, clearFilters }) {
   const [itemTypes, setItemTypes] = useState([]);
   const update = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
+  const minRent = Number(filters.minRent || RENT_MIN);
+  const maxRent = Number(filters.maxRent || RENT_MAX);
+  const budgetLabel = filters.minRent || filters.maxRent ? `${money(minRent)} - ${money(maxRent)}` : "Any budget";
+
+  const updateRent = (key, nextValue) => {
+    const value = Math.min(RENT_MAX, Math.max(RENT_MIN, Number(nextValue)));
+    setFilters((current) => {
+      const currentMin = Number(current.minRent || RENT_MIN);
+      const currentMax = Number(current.maxRent || RENT_MAX);
+      const next = { ...current };
+      if (key === "minRent") {
+        const adjustedMin = Math.min(value, currentMax);
+        if (adjustedMin === RENT_MIN) delete next.minRent;
+        else next.minRent = String(adjustedMin);
+        if (adjustedMin > currentMax) next.maxRent = String(adjustedMin);
+      } else {
+        const adjustedMax = Math.max(value, currentMin);
+        if (adjustedMax === RENT_MAX) delete next.maxRent;
+        else next.maxRent = String(adjustedMax);
+        if (adjustedMax < currentMin) next.minRent = String(adjustedMax);
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     api.get("/item-types")
@@ -19,20 +48,41 @@ export default function PropertyFilterSidebar({ filters, setFilters, applyFilter
       <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-wide"><SlidersHorizontal className="h-4 w-4" /> Filters</h2>
       <div className="mt-4 space-y-3">
         <input className="field" placeholder="Pincode" value={filters.city || ""} onChange={(e) => update("city", e.target.value)} />
-        <div className="grid grid-cols-2 gap-2">
-          <input className="field" type="number" placeholder="Min daily rent" value={filters.minRent || ""} onChange={(e) => update("minRent", e.target.value)} />
-          <input className="field" type="number" placeholder="Max daily rent" value={filters.maxRent || ""} onChange={(e) => update("maxRent", e.target.value)} />
-        </div>
-        <div className="rounded-2xl border border-violet-100 bg-mist/70 p-3 dark:border-violet-900/70 dark:bg-white/10">
-          <p className="text-xs font-black uppercase tracking-wide text-meadow">Check date availability</p>
-          <div className="mt-3 grid gap-2">
-            <label className="space-y-1">
-              <span className="text-xs font-black text-violet-950 dark:text-white">Start date</span>
-              <input className="field" type="date" value={filters.startDate || ""} onChange={(e) => update("startDate", e.target.value)} />
+        <div className="rounded-2xl border border-violet-100 bg-mist/70 p-4 dark:border-violet-900/70 dark:bg-white/10">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-black uppercase tracking-wide text-meadow">Rent budget</p>
+            <p className="text-sm font-black text-violet-950 dark:text-violet-100">{budgetLabel}</p>
+          </div>
+          <div className="mt-4 space-y-4">
+            <label className="block">
+              <span className="mb-2 flex items-center justify-between text-xs font-bold text-violet-950/65 dark:text-violet-100/70">
+                <span>Min</span>
+                <span>{money(minRent)}</span>
+              </span>
+              <input
+                className="w-full accent-violet-700"
+                max={RENT_MAX}
+                min={RENT_MIN}
+                step={RENT_STEP}
+                type="range"
+                value={minRent}
+                onChange={(e) => updateRent("minRent", e.target.value)}
+              />
             </label>
-            <label className="space-y-1">
-              <span className="text-xs font-black text-violet-950 dark:text-white">End date</span>
-              <input className="field" type="date" min={filters.startDate || ""} value={filters.endDate || ""} onChange={(e) => update("endDate", e.target.value)} />
+            <label className="block">
+              <span className="mb-2 flex items-center justify-between text-xs font-bold text-violet-950/65 dark:text-violet-100/70">
+                <span>Max</span>
+                <span>{money(maxRent)}</span>
+              </span>
+              <input
+                className="w-full accent-violet-700"
+                max={RENT_MAX}
+                min={RENT_MIN}
+                step={RENT_STEP}
+                type="range"
+                value={maxRent}
+                onChange={(e) => updateRent("maxRent", e.target.value)}
+              />
             </label>
           </div>
         </div>

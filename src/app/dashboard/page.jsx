@@ -114,7 +114,7 @@ const bookingTrackerIndex = (booking) => {
   return 0;
 };
 
-const KYC_MAX_FILE_SIZE = 8 * 1024 * 1024;
+const KYC_MAX_FILE_SIZE = 15 * 1024 * 1024;
 const KYC_TARGET_IMAGE_SIZE = 4 * 1024 * 1024;
 const KYC_ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
 const kycDocumentLabels = {
@@ -126,7 +126,7 @@ const kycDocumentLabels = {
 const validateKycUploadFile = (file) => {
   if (!file) return "Select a clear JPG, PNG, or PDF file";
   if (!KYC_ALLOWED_TYPES.includes(file.type)) return "Only JPG, PNG, and PDF files are supported";
-  if (file.size > KYC_MAX_FILE_SIZE) return "File size must be 8 MB or less";
+  if (file.size > KYC_MAX_FILE_SIZE) return "File size must be 15 MB or less";
   return "";
 };
 

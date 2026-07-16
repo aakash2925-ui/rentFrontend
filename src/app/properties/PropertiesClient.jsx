@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CalendarDays, X } from "lucide-react";
+import { CalendarDays, ChevronDown, SlidersHorizontal, X } from "lucide-react";
 import api from "@/lib/api";
 import Loading from "@/components/common/Loading";
 import ErrorMessage from "@/components/common/ErrorMessage";
@@ -37,6 +37,7 @@ export default function PropertiesClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [dateNoticeOpen, setDateNoticeOpen] = useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   const dateRangeSelected = Boolean(searchParams.get("startDate") && searchParams.get("endDate"));
   const unavailableItems = properties.filter((item) => item.requestedDateUnavailable);
@@ -60,12 +61,17 @@ export default function PropertiesClient() {
 
   const applyFilters = () => {
     const params = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => value && params.set(key, value));
+    Object.entries(filters).forEach(([key, value]) => {
+      if (["startDate", "endDate"].includes(key)) return;
+      if (value) params.set(key, value);
+    });
+    setMobileFiltersOpen(false);
     router.push(`/items?${params.toString()}`);
   };
 
   const clearFilters = () => {
     setFilters({});
+    setMobileFiltersOpen(false);
     router.push("/items");
   };
 
@@ -85,7 +91,24 @@ export default function PropertiesClient() {
 
   return (
     <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 lg:grid-cols-[280px_1fr]">
-      <PropertyFilterSidebar filters={filters} setFilters={setFilters} applyFilters={applyFilters} clearFilters={clearFilters} />
+      <div className="lg:hidden">
+        <button
+          className="flex w-full items-center justify-between rounded-2xl border border-violet-100 bg-white px-4 py-3 text-left font-black text-violet-950 shadow-sm transition hover:bg-violet-50 dark:border-violet-900/70 dark:bg-stone-950 dark:text-violet-100 dark:hover:bg-white/10"
+          type="button"
+          onClick={() => setMobileFiltersOpen((value) => !value)}
+        >
+          <span className="inline-flex items-center gap-2"><SlidersHorizontal className="h-4 w-4" /> Filter</span>
+          <ChevronDown className={`h-5 w-5 transition ${mobileFiltersOpen ? "rotate-180" : ""}`} />
+        </button>
+        {mobileFiltersOpen && (
+          <div className="mt-3">
+            <PropertyFilterSidebar filters={filters} setFilters={setFilters} applyFilters={applyFilters} clearFilters={clearFilters} />
+          </div>
+        )}
+      </div>
+      <div className="hidden lg:block">
+        <PropertyFilterSidebar filters={filters} setFilters={setFilters} applyFilters={applyFilters} clearFilters={clearFilters} />
+      </div>
       <section>
         <div className="mb-5">
           <h1 className="text-3xl font-black">Rental items</h1>

@@ -14,6 +14,11 @@ import { minRentalDaysOf, rentalDaysBetween } from "@/lib/itemFields";
 const checkoutSteps = ["Cart", "Address", "Delivery", "Payment", "Confirmation"];
 const serviceableStates = ["Uttar Pradesh", "Haryana", "Delhi"];
 
+function localMobileNumber(value = "") {
+  const digits = String(value || "").replace(/\D/g, "");
+  return digits.startsWith("91") && digits.length >= 12 ? digits.slice(2, 12) : digits.slice(-10);
+}
+
 function toDateInputValue(date) {
   const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return localDate.toISOString().slice(0, 10);
@@ -61,7 +66,7 @@ function loadRazorpay() {
 
 const blankAddress = (user) => ({
   fullName: user?.name || "",
-  mobileNumber: user?.phone || "",
+  mobileNumber: localMobileNumber(user?.phoneNumber || user?.phone || ""),
   email: user?.email || "",
   houseFlatNo: "",
   streetArea: "",
@@ -114,7 +119,7 @@ export default function CartPage() {
     setAddressForm((current) => ({
       ...current,
       fullName: current.fullName || user.name || "",
-      mobileNumber: current.mobileNumber || user.phone || "",
+      mobileNumber: localMobileNumber(current.mobileNumber || user.phoneNumber || user.phone || ""),
       email: current.email || user.email || ""
     }));
     api.get("/auth/addresses")
@@ -194,6 +199,7 @@ export default function CartPage() {
   const validateAddress = useCallback(() => {
     if (!addressForm.fullName.trim()) return "Full name is required.";
     if (!addressForm.mobileNumber.trim()) return "Mobile number is required.";
+    if (!/^[6-9]\d{9}$/.test(localMobileNumber(addressForm.mobileNumber))) return "Enter a valid 10-digit mobile number.";
     if (!addressForm.email.trim()) return "Email is required.";
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addressForm.email.trim())) return "Enter a valid email address.";
     if (!addressForm.houseFlatNo.trim()) return "House/flat number is required.";
@@ -295,7 +301,7 @@ export default function CartPage() {
         nextAddressPayload = {
           ...addressPayload,
           fullName: data.user.name || addressPayload.fullName,
-          mobileNumber: data.user.phoneNumber || data.user.phone || addressPayload.mobileNumber,
+          mobileNumber: localMobileNumber(data.user.phoneNumber || data.user.phone || addressPayload.mobileNumber),
           email: data.user.email || addressPayload.email
         };
         setAddressForm((current) => ({
@@ -341,7 +347,7 @@ export default function CartPage() {
     setSaveAddress(false);
     setAddressForm({
       fullName: address.fullName || "",
-      mobileNumber: address.mobileNumber || "",
+      mobileNumber: localMobileNumber(address.mobileNumber || ""),
       email: address.email || user?.email || "",
       houseFlatNo: address.houseFlatNo || "",
       streetArea: address.streetArea || "",
@@ -816,7 +822,14 @@ function AddressStep({ addresses, addressForm, setAddressForm, fillAddress, star
       )}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Field label="Full Name" value={addressForm.fullName} onChange={(value) => update("fullName", value)} />
-        <Field label="Mobile Number" value={addressForm.mobileNumber} onChange={(value) => update("mobileNumber", value)} />
+        <Field
+          inputMode="numeric"
+          label="Mobile Number"
+          maxLength={10}
+          pattern="[6-9][0-9]{9}"
+          value={addressForm.mobileNumber}
+          onChange={(value) => update("mobileNumber", localMobileNumber(value))}
+        />
         <Field label="Email" type="email" value={addressForm.email} onChange={(value) => update("email", value)} />
         <Field label="House/Flat No." value={addressForm.houseFlatNo} onChange={(value) => update("houseFlatNo", value)} />
         <Field label="Street/Area" value={addressForm.streetArea} onChange={(value) => update("streetArea", value)} />
@@ -1016,11 +1029,11 @@ function KycStep({ user }) {
   );
 }
 
-function Field({ label, optional = false, type = "text", value, onChange }) {
+function Field({ label, optional = false, type = "text", value, onChange, inputMode, maxLength, pattern }) {
   return (
     <label className="space-y-2">
       <span className="text-sm font-black text-violet-950 dark:text-white">{label} {!optional && <span className="text-clay">*</span>}</span>
-      <input className="field" type={type} value={value} onChange={(event) => onChange(event.target.value)} />
+      <input className="field" inputMode={inputMode} maxLength={maxLength} pattern={pattern} type={type} value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
 }
