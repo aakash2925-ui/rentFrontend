@@ -7,7 +7,7 @@ import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { useToast } from "@/context/ToastContext";
-import { minRentalDaysOf, rentalDaysBetween } from "@/lib/itemFields";
+import { isBookableItem, minRentalDaysOf, rentalDaysBetween } from "@/lib/itemFields";
 
 function toDateInputValue(date) {
   const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -70,14 +70,19 @@ export default function RentalOptionsCard({ property }) {
   const [showCartAction, setShowCartAction] = useState(false);
   const rentalDays = rentalDaysBetween(form.startDate, form.endDate);
   const inCart = items.some((item) => item._id === property._id);
+  const outOfStock = !isBookableItem(property);
   const datesValid = form.startDate && form.endDate && form.startDate >= earliestStartDate && form.endDate >= form.startDate && rentalDays >= minRentalDays;
-  const ready = Boolean(datesValid && availability.status === "available");
+  const ready = Boolean(!outOfStock && datesValid && availability.status === "available");
   const knownBookedPeriods = useMemo(() => uniqueBookedPeriods([
     ...(property.bookedPeriods || []),
     ...(availability.bookedPeriods || [])
   ]), [availability.bookedPeriods, property.bookedPeriods]);
 
   useEffect(() => {
+    if (outOfStock) {
+      setAvailability({ status: "idle", message: "This item is currently out of stock." });
+      return undefined;
+    }
     if (!/^\d{6}$/.test(form.pincode)) {
       setAvailability({ status: "idle", message: "" });
       return undefined;
@@ -94,7 +99,7 @@ export default function RentalOptionsCard({ property }) {
         .catch((err) => setAvailability({ status: "unavailable", message: err.response?.data?.message || "Unable to check availability", nextAvailableAfter: "", bookedPeriods: [] }));
     }, 450);
     return () => clearTimeout(timer);
-  }, [form.endDate, form.pincode, form.startDate, property._id]);
+  }, [form.endDate, form.pincode, form.startDate, outOfStock, property._id]);
 
   const updateStartDate = (value) => {
     const startDate = laterDate(value, earliestStartDate);
@@ -129,6 +134,10 @@ export default function RentalOptionsCard({ property }) {
   };
 
   const addToCart = () => {
+    if (outOfStock) {
+      showToast("This item is currently out of stock", "error");
+      return;
+    }
     if (!authLoading && !user) {
       showToast("Please login to add this item to cart", "error");
       router.push("/login");
@@ -158,19 +167,19 @@ export default function RentalOptionsCard({ property }) {
         <div>
           <p className="text-sm font-black uppercase tracking-wide text-meadow">Rental options</p>
           <h2 className="mt-1 text-2xl font-black text-ink dark:text-white">Select dates and pincode</h2>
-          <p className="mt-1 text-sm text-violet-950/60 dark:text-violet-100/65">Add to cart is enabled only after availability is confirmed.</p>
+          <p className="mt-1 text-sm text-violet-950/60 dark:text-violet-100/65">{outOfStock ? "This item is currently out of stock." : "Add to cart is enabled only after availability is confirmed."}</p>
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4">
+      <div className={`mt-5 grid gap-4 ${outOfStock ? "pointer-events-none opacity-55" : ""}`} aria-disabled={outOfStock}>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="space-y-2">
             <span className="text-sm font-black text-violet-950 dark:text-white">Start Date</span>
-            <input className="field" type="date" min={earliestStartDate} value={form.startDate} onChange={(event) => updateStartDate(event.target.value)} />
+            <input className="field" disabled={outOfStock} type="date" min={earliestStartDate} value={form.startDate} onChange={(event) => updateStartDate(event.target.value)} />
           </label>
           <label className="space-y-2">
             <span className="text-sm font-black text-violet-950 dark:text-white">End Date</span>
-            <input className="field" type="date" min={form.startDate || earliestStartDate} value={form.endDate} onChange={(event) => updateEndDate(event.target.value)} />
+            <input className="field" disabled={outOfStock} type="date" min={form.startDate || earliestStartDate} value={form.endDate} onChange={(event) => updateEndDate(event.target.value)} />
           </label>
         </div>
         {form.startDate && form.endDate && rentalDays > 0 && rentalDays < minRentalDays && (
@@ -193,6 +202,7 @@ export default function RentalOptionsCard({ property }) {
                 inputMode="numeric"
                 maxLength={6}
                 placeholder="Enter 6-digit pincode"
+                disabled={outOfStock}
                 value={form.pincode}
                 onChange={(event) => setForm((current) => ({ ...current, pincode: event.target.value.replace(/\D/g, "").slice(0, 6) }))}
               />
@@ -234,7 +244,11 @@ export default function RentalOptionsCard({ property }) {
             </div>
           )}
         </div>
-        {inCart ? (
+        {outOfStock ? (
+          <button type="button" className="pointer-events-auto inline-flex min-h-12 cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-red-100 bg-red-50 px-4 text-sm font-black text-red-700 shadow-soft dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-200" disabled>
+            <XCircle className="h-5 w-5" /> Out of Stock
+          </button>
+        ) : inCart ? (
           <button type="button" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-red-100 bg-white px-4 text-sm font-black text-red-600 shadow-soft transition hover:bg-red-50 dark:border-red-900/70 dark:bg-white/10 dark:text-red-300 dark:hover:bg-red-950/30" onClick={removeFromCart}>
             Remove from cart
           </button>

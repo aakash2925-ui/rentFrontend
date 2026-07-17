@@ -9,7 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { useToast } from "@/context/ToastContext";
 import { DELIVERY_TIME_SLOTS, calculateRentalPricing, deliverySpeedDetails } from "@/lib/rentalPricing";
-import { minRentalDaysOf, rentalDaysBetween } from "@/lib/itemFields";
+import { isBookableItem, minRentalDaysOf, rentalDaysBetween } from "@/lib/itemFields";
 
 const checkoutSteps = ["Cart", "Address", "Delivery", "Payment", "Confirmation"];
 const serviceableStates = ["Uttar Pradesh", "Haryana", "Delhi"];
@@ -92,6 +92,7 @@ export default function CartPage() {
   const [saveAddress, setSaveAddress] = useState(false);
   const [availability, setAvailability] = useState({ status: "idle", message: "", blockedItems: [] });
   const [dateAvailability, setDateAvailability] = useState({});
+  const [stockStatus, setStockStatus] = useState({});
   const [paymentMethod, setPaymentMethod] = useState("cod");
   const [deliverySpeed, setDeliverySpeed] = useState("standard");
   const [promoCode, setPromoCode] = useState("");
@@ -103,6 +104,7 @@ export default function CartPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [confirmedBookings, setConfirmedBookings] = useState([]);
+  const cartItemIds = useMemo(() => items.map((item) => item._id).filter(Boolean).join(","), [items]);
 
   useEffect(() => {
     stepRefs.current[step]?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
@@ -127,9 +129,51 @@ export default function CartPage() {
       .catch(() => setAddresses([]));
   }, [user]);
 
+  useEffect(() => {
+    if (!cartItemIds) {
+      setStockStatus({});
+      return undefined;
+    }
+    let cancelled = false;
+    const ids = cartItemIds.split(",");
+    setStockStatus((current) => {
+      const next = { ...current };
+      ids.forEach((id) => {
+        next[id] = { ...(next[id] || {}), checking: true };
+      });
+      return next;
+    });
+
+    Promise.all(ids.map((id) => (
+      api.get(`/properties/${id}`)
+        .then(({ data }) => ({
+          id,
+          checking: false,
+          isAvailable: data.property?.isAvailable !== false,
+          quantity: Number(data.property?.quantity || 0),
+          outOfStock: !isBookableItem(data.property),
+          message: !isBookableItem(data.property) ? "This item is currently out of stock." : ""
+        }))
+        .catch(() => ({
+          id,
+          checking: false,
+          outOfStock: true,
+          message: "Unable to confirm current stock. Please remove this item and add it again."
+        }))
+    ))).then((results) => {
+      if (cancelled) return;
+      setStockStatus(Object.fromEntries(results.map((result) => [result.id, result])));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cartItemIds]);
+
   const pricedItems = useMemo(() => items.map((item) => {
     const rentalDays = rentalDaysBetween(item.startDate, item.endDate);
     const voucher = appliedVouchers[item._id];
+    const stock = stockStatus[item._id];
     const pricing = calculateRentalPricing({
       rent: item.rent,
       deposit: item.deposit,
@@ -141,8 +185,15 @@ export default function CartPage() {
       voucherDiscountAmount: voucher?.discountAmount || 0,
       voucherMessage: voucher?.message || ""
     });
-    return { ...item, rentalDays, pricing };
-  }), [appliedVouchers, items]);
+    return {
+      ...item,
+      quantity: stock?.quantity ?? item.quantity,
+      rentalDays,
+      pricing,
+      stockStatus: stock,
+      outOfStock: stock?.outOfStock ?? !isBookableItem(item)
+    };
+  }), [appliedVouchers, items, stockStatus]);
 
   const selectedDelivery = useMemo(() => deliverySpeedDetails(deliverySpeed), [deliverySpeed]);
   const totals = useMemo(() => {
@@ -182,9 +233,11 @@ export default function CartPage() {
   const validateCart = useCallback(() => {
     if (!user) return "Please login before checkout.";
     if (!items.length) return "Your cart is empty.";
-    for (const item of items) {
+    for (const item of pricedItems) {
       const minDays = minRentalDaysOf(item);
       const days = rentalDaysBetween(item.startDate, item.endDate);
+      if (item.stockStatus?.checking) return `Checking stock for ${item.title}.`;
+      if (item.outOfStock) return `${item.title} is out of stock. Please remove it from cart.`;
       if (!item.startDate) return `Select start date for ${item.title}.`;
       if (!item.endDate) return `Select end date for ${item.title}.`;
       if (item.startDate < today) return `Start date for ${item.title} cannot be before today.`;
@@ -194,7 +247,7 @@ export default function CartPage() {
       if (dateAvailability[item._id]?.status === "unavailable") return `${item.title} is booked. Please book after the booked period.`;
     }
     return "";
-  }, [dateAvailability, items, today, user]);
+  }, [dateAvailability, items.length, pricedItems, today, user]);
 
   const validateAddress = useCallback(() => {
     if (!addressForm.fullName.trim()) return "Full name is required.";
@@ -677,6 +730,7 @@ function CartReview({ items, today, updateItem, removeItem, clearCart, dateAvail
         {items.map((item) => {
           const minDays = minRentalDaysOf(item);
           const itemDateAvailability = dateAvailability[item._id];
+          const outOfStock = item.outOfStock;
           const knownBookedPeriods = uniqueBookedPeriods([
             ...(item.bookedPeriods || []),
             ...(itemDateAvailability?.bookedPeriods || [])
@@ -700,15 +754,26 @@ function CartReview({ items, today, updateItem, removeItem, clearCart, dateAvail
                     <Link href={`/items/${item._id}`} className="text-lg font-black text-ink hover:text-meadow dark:text-white">{item.title}</Link>
                     <p className="mt-1 text-sm text-violet-950/60 dark:text-violet-100/65">{item.itemType} · Pincode {item.pincode}</p>
                     {item.offer && <p className="mt-1 text-sm font-bold text-meadow">{item.offer}</p>}
+                    {item.stockStatus?.checking && <p className="mt-2 inline-flex rounded-full bg-violet-50 px-3 py-1 text-xs font-black text-violet-700 dark:bg-violet-950/50 dark:text-violet-100">Checking stock...</p>}
+                    {outOfStock && (
+                      <p className="mt-2 inline-flex rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-700 dark:bg-red-950/40 dark:text-red-200">
+                        Out of Stock
+                      </p>
+                    )}
                   </div>
                   <button type="button" onClick={() => removeItem(item._id)} className="inline-flex items-center gap-2 rounded-xl border border-red-100 px-3 py-2 text-xs font-black text-red-600 transition hover:bg-red-50 dark:border-red-900/70 dark:hover:bg-red-950/30">
                     <Trash2 className="h-4 w-4" /> Remove
                   </button>
                 </div>
+                {outOfStock && (
+                  <div className="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-black text-red-700 dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-100">
+                    {item.stockStatus?.message || "This item became out of stock after it was added to your cart. Please remove it to continue checkout."}
+                  </div>
+                )}
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <label className="space-y-2">
                     <span className="text-sm font-black">Start date</span>
-                    <input className="field" type="date" min={today} value={item.startDate || ""} onChange={(event) => {
+                    <input className="field" disabled={outOfStock} type="date" min={today} value={item.startDate || ""} onChange={(event) => {
                       const startDate = event.target.value;
                       const endDate = item.endDate && item.endDate >= startDate ? item.endDate : addDays(startDate, minDays);
                       const blockedPeriod = bookedPeriodsOverlap(knownBookedPeriods, startDate, endDate);
@@ -725,7 +790,7 @@ function CartReview({ items, today, updateItem, removeItem, clearCart, dateAvail
                   </label>
                   <label className="space-y-2">
                     <span className="text-sm font-black">End date</span>
-                    <input className="field" type="date" min={item.startDate || today} value={item.endDate || ""} onChange={(event) => {
+                    <input className="field" disabled={outOfStock} type="date" min={item.startDate || today} value={item.endDate || ""} onChange={(event) => {
                       const endDate = event.target.value;
                       const blockedPeriod = bookedPeriodsOverlap(knownBookedPeriods, item.startDate, endDate);
                       if (blockedPeriod) {
@@ -737,18 +802,18 @@ function CartReview({ items, today, updateItem, removeItem, clearCart, dateAvail
                     }} />
                   </label>
                 </div>
-                {blockedSelection && itemDateAvailability?.status !== "unavailable" && (
+                {!outOfStock && blockedSelection && itemDateAvailability?.status !== "unavailable" && (
                   <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-black text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
                     <p>This item is booked.</p>
                     <p className="mt-2 text-xs">Booked period: {formatBookedPeriodDate(blockedSelection.startDate)} to {formatBookedPeriodDate(blockedSelection.endDate)}. Book after this period.</p>
                   </div>
                 )}
-                {itemDateAvailability?.status === "checking" && (
+                {!outOfStock && itemDateAvailability?.status === "checking" && (
                   <div className="mt-3 flex items-center gap-2 rounded-2xl border border-violet-100 bg-white px-4 py-3 text-sm font-black text-violet-700 dark:border-violet-900/70 dark:bg-stone-950/60 dark:text-violet-100">
                     <Loader2 className="h-4 w-4 animate-spin" /> Checking selected dates...
                   </div>
                 )}
-                {itemDateAvailability?.status === "unavailable" && (
+                {!outOfStock && itemDateAvailability?.status === "unavailable" && (
                   <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-black text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
                     <p>This item is booked.</p>
                     {itemDateAvailability.message && !itemDateAvailability.bookedPeriods?.length && <p className="mt-1 text-xs font-bold opacity-80">{itemDateAvailability.message}</p>}
@@ -771,7 +836,7 @@ function CartReview({ items, today, updateItem, removeItem, clearCart, dateAvail
                     )}
                   </div>
                 )}
-                {itemDateAvailability?.status === "available" && (
+                {!outOfStock && itemDateAvailability?.status === "available" && (
                   <div className="mt-3 flex items-center gap-2 rounded-2xl border border-green-100 bg-green-50 px-4 py-3 text-sm font-black text-green-700 dark:border-green-900/70 dark:bg-green-950/30 dark:text-green-100">
                     <CheckCircle2 className="h-4 w-4" /> Available for selected dates
                   </div>

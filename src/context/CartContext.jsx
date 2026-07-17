@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { itemTypeOf, minRentalDaysOf, quantityOf } from "@/lib/itemFields";
+import { isBookableItem, itemTypeOf, minRentalDaysOf, quantityOf } from "@/lib/itemFields";
 import { useAuth } from "@/context/AuthContext";
 
 const CartContext = createContext(null);
@@ -49,12 +49,14 @@ export function CartProvider({ children }) {
   }, [cartKey, items, loading]);
 
   const addItem = (property, rentalPlan = {}) => {
+    if (!isBookableItem(property)) return false;
     const snapshot = cartSnapshot(property, rentalPlan);
     setItems((current) => {
       const existing = current.find((item) => item._id === snapshot._id);
       if (existing) return current.map((item) => (item._id === snapshot._id ? { ...item, ...snapshot, cartQuantity: 1 } : item));
       return [...current, { ...snapshot, cartQuantity: 1 }];
     });
+    return true;
   };
 
   const updateItem = (id, updates) => {

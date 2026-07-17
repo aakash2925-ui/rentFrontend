@@ -87,9 +87,9 @@ export default function LoginForm() {
             <div className="rounded-2xl border border-violet-100 bg-mist/70 p-3 shadow-sm dark:border-violet-900/70 dark:bg-white/10">
               <GoogleLoginButton onSuccess={handleGoogleSuccess} onError={handleGoogleError} disabled={loading} />
             </div>
-            <div className="rounded-2xl border border-violet-100 bg-white p-4 shadow-soft dark:border-violet-900/70 dark:bg-stone-950/45">
+            {/* <div className="rounded-2xl border border-violet-100 bg-white p-4 shadow-soft dark:border-violet-900/70 dark:bg-stone-950/45">
               <MobileOtpAuth onSuccess={handleMobileSuccess} title="Login with Mobile Number" />
-            </div>
+            </div> */}
           </div>
 
         </div>

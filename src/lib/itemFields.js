@@ -1,5 +1,6 @@
 export const itemTypeOf = (item) => item?.itemType || item?.propertyType || "";
-export const quantityOf = (item) => Number(item?.quantity ?? item?.bedrooms ?? 0);
+export const quantityOf = (item) => Number(item?.quantity ?? item?.quantityAvailable ?? item?.bedrooms ?? 0);
+export const isBookableItem = (item) => item?.isAvailable !== false && quantityOf(item) > 0;
 export const minRentalDaysOf = (item) => Number(item?.minRentalDays ?? item?.bathrooms ?? 1);
 export const conditionOf = (item) => item?.condition || item?.furnishing || "Good";
 

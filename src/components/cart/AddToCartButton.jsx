@@ -7,6 +7,7 @@ import { ShoppingCart, Trash2 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useToast } from "@/context/ToastContext";
 import { useAuth } from "@/context/AuthContext";
+import { isBookableItem } from "@/lib/itemFields";
 
 export default function AddToCartButton({ property, className = "", compact = false, showGoToCart = true }) {
   const router = useRouter();
@@ -15,8 +16,9 @@ export default function AddToCartButton({ property, className = "", compact = fa
   const { addItem, items, removeItem } = useCart();
   const { showToast } = useToast();
   const { user, loading } = useAuth();
-  const disabled = !property?._id;
-  const inCart = items.some((item) => item._id === property._id);
+  const outOfStock = property?._id && !isBookableItem(property);
+  const disabled = !property?._id || outOfStock;
+  const inCart = items.some((item) => item._id === property?._id);
 
   useEffect(() => {
     setMounted(true);
@@ -25,6 +27,10 @@ export default function AddToCartButton({ property, className = "", compact = fa
   const toggleCart = (event) => {
     event.preventDefault();
     event.stopPropagation();
+    if (outOfStock) {
+      showToast("This item is currently out of stock", "error");
+      return;
+    }
     if (!loading && !user) {
       showToast("Please login to add items to cart", "error");
       router.push(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`);
@@ -47,10 +53,10 @@ export default function AddToCartButton({ property, className = "", compact = fa
         type="button"
         onClick={toggleCart}
         disabled={disabled}
-        className={`${compact ? "min-h-10 px-3 text-xs" : "min-h-11 px-4 text-sm"} inline-flex items-center justify-center gap-2 rounded-xl ${inCart ? "border border-red-100 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/70 dark:bg-white/10 dark:text-red-300 dark:hover:bg-red-950/30" : "bg-gradient-to-r from-violet-700 via-meadow to-fuchsia-500 text-white"} font-black shadow-soft transition hover:-translate-y-0.5 hover:shadow-glow disabled:cursor-not-allowed disabled:opacity-55 ${className}`}
+        className={`${compact ? "min-h-10 px-3 text-xs" : "min-h-11 px-4 text-sm"} inline-flex items-center justify-center gap-2 rounded-xl ${outOfStock ? "border border-red-100 bg-red-50 text-red-700 dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-200" : inCart ? "border border-red-100 bg-white text-red-600 hover:bg-red-50 dark:border-red-900/70 dark:bg-white/10 dark:text-red-300 dark:hover:bg-red-950/30" : "bg-gradient-to-r from-violet-700 via-meadow to-fuchsia-500 text-white"} font-black shadow-soft transition hover:-translate-y-0.5 hover:shadow-glow disabled:cursor-not-allowed disabled:opacity-80 ${className}`}
       >
         {inCart ? <Trash2 className={compact ? "h-4 w-4" : "h-5 w-5"} /> : <ShoppingCart className={compact ? "h-4 w-4" : "h-5 w-5"} />}
-        {inCart ? "Remove from cart" : "Add to cart"}
+        {outOfStock ? "Out of Stock" : inCart ? "Remove from cart" : "Add to cart"}
       </button>
       {mounted && showGoToCart && showCartAction && inCart && createPortal((
         <div className="fixed bottom-5 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl border border-violet-100 bg-white/95 p-3 shadow-glow backdrop-blur-xl dark:border-violet-900/70 dark:bg-stone-950/95">
