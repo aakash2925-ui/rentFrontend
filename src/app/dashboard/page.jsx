@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   Bell,
@@ -388,6 +389,7 @@ function BookingCard({ booking, compact = false, onCancelBooking }) {
   const [cancelOpen, setCancelOpen] = useState(false);
   const itemHref = booking.property?._id ? `/items/${booking.property._id}` : "";
   const title = booking.property?.title || "Rental item";
+  const imageSrc = booking.property?.images?.[0] ? uploadUrl(booking.property.images[0]) : "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=700&q=80";
   const deliveryDate = booking.deliveryDate || booking.startDate;
   const deliveryLabel = deliverySlotLabels[booking.deliverySpeed] || "Delivery";
   const deliveryWindow = booking.deliveryEta || deliverySlotWindows[booking.deliverySpeed] || "Within 24 hours";
@@ -400,76 +402,94 @@ function BookingCard({ booking, compact = false, onCancelBooking }) {
     && booking.canUserCancel !== false;
   const bookingStatusText = cancelledByUser ? "Cancelled by User" : statusLabel(booking.status);
   const bookingStatusClass = cancelledByUser ? "bg-red-50 text-red-700" : statusTone[booking.status];
+  const amount = Number(booking.finalAmount || booking.totalAmount || 0).toLocaleString();
+  const progressPercent = cancelled ? 100 : Math.min(100, Math.max(8, ((trackerIndex + 1) / orderTrackerSteps.length) * 100));
 
   return (
-    <article className="min-w-0 overflow-hidden rounded-[1.35rem] border border-violet-100 bg-white shadow-sm transition hover:shadow-soft dark:border-violet-900/70 dark:bg-stone-950/70">
-      <div className="border-b border-violet-100 bg-gradient-to-r from-violet-50 via-white to-fuchsia-50 p-4 dark:border-violet-900/70 dark:from-violet-950/50 dark:via-stone-950 dark:to-fuchsia-950/30">
-        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-          <div className="min-w-0 flex-1">
-            {itemHref ? (
-              <Link href={itemHref} className="line-clamp-2 max-w-full break-words text-xl font-black leading-snug text-ink transition hover:text-meadow dark:text-white">
-                {title}
-              </Link>
-            ) : (
-              <h3 className="line-clamp-2 max-w-full break-words text-xl font-black leading-snug text-ink dark:text-white">{title}</h3>
-            )}
-            <p className="mt-2 break-words text-sm font-semibold text-violet-950/60 dark:text-violet-100/65">
-              Booking ID #{String(booking._id).slice(-8)} · {booking.quantity || 1} item(s)
-            </p>
-          </div>
-          <div className="flex min-w-0 flex-wrap gap-2 md:max-w-[45%] md:justify-end">
-            <StatusPill label={bookingStatusText} className={bookingStatusClass} />
-            <StatusPill label={`payment ${booking.paymentStatus}`} />
-          </div>
-        </div>
+    <article className="group min-w-0 overflow-hidden rounded-[1.6rem] border border-violet-100 bg-white shadow-sm transition duration-300 hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-soft dark:border-violet-900/70 dark:bg-stone-950/80">
+      <div className="relative h-1.5 bg-violet-100 dark:bg-violet-950">
+        <span className={`absolute inset-y-0 left-0 rounded-r-full ${cancelled ? "bg-red-500" : "bg-gradient-to-r from-violet-700 to-fuchsia-500"}`} style={{ width: `${progressPercent}%` }} />
       </div>
 
-      <div className="p-4">
-        <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <InfoCard icon={IndianRupee} label="Amount" value={`₹${Number(booking.finalAmount || booking.totalAmount || 0).toLocaleString()}`} />
-          <InfoCard icon={CreditCard} label="Payment" value={booking.paymentMethod === "razorpay" ? "Razorpay" : "Cash on Delivery"} />
-          <InfoCard icon={CalendarDays} label="Rental dates" value={`${formatDate(booking.startDate)} - ${formatDate(booking.endDate)}`} />
-          <InfoCard icon={Package} label="Booking ID" value={String(booking._id).slice(-8)} />
-        </div>
+      <div className="grid gap-0 lg:grid-cols-[190px_1fr]">
+        {itemHref ? (
+          <Link href={itemHref} className="relative block min-h-[145px] overflow-hidden bg-violet-50 dark:bg-stone-900 lg:min-h-full">
+            <img src={imageSrc} alt={title} className="h-full min-h-[145px] w-full object-cover transition duration-500 group-hover:scale-105" />
+            <span className="absolute left-3 top-3 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-black text-white backdrop-blur">#{String(booking._id).slice(-8)}</span>
+          </Link>
+        ) : (
+          <div className="relative grid min-h-[145px] place-items-center bg-gradient-to-br from-violet-100 to-fuchsia-100 dark:from-violet-950/70 dark:to-stone-900">
+            <Package className="h-10 w-10 text-violet-500" />
+          </div>
+        )}
 
-        <div className="mt-4">
-          <div className="min-w-0 rounded-2xl border border-violet-100 bg-mist/70 p-4 dark:border-violet-900/70 dark:bg-white/10">
+        <div className="min-w-0 p-3.5 sm:p-4">
+          <div className="flex flex-col justify-between gap-3 xl:flex-row xl:items-start">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusPill label={bookingStatusText} className={bookingStatusClass} />
+                <StatusPill label={booking.paymentStatus === "paid" ? "Paid" : `Payment ${booking.paymentStatus}`} className={booking.paymentStatus === "paid" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200" : undefined} />
+              </div>
+              {itemHref ? (
+                <Link href={itemHref} className="mt-2 line-clamp-2 max-w-full break-words text-lg font-black leading-snug text-ink transition hover:text-meadow dark:text-white">
+                  {title}
+                </Link>
+              ) : (
+                <h3 className="mt-2 line-clamp-2 max-w-full break-words text-lg font-black leading-snug text-ink dark:text-white">{title}</h3>
+              )}
+              <p className="mt-1.5 break-words text-xs font-semibold text-violet-950/60 dark:text-violet-100/65">
+                {booking.quantity || 1} item(s) · {booking.paymentMethod === "razorpay" ? "Razorpay" : "Cash on Delivery"}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-gradient-to-br from-violet-700 to-fuchsia-600 px-4 py-3 text-white shadow-soft xl:text-right">
+              <p className="text-[11px] font-black uppercase tracking-wide text-white/70">Payable</p>
+              <p className="mt-0.5 text-xl font-black">₹{amount}</p>
+            </div>
+          </div>
+
+          <div className="mt-3 grid min-w-0 gap-2.5 md:grid-cols-3">
+            <InfoCard compact icon={CalendarDays} label="Rental dates" value={`${formatDate(booking.startDate)} - ${formatDate(booking.endDate)}`} />
+            <InfoCard compact icon={CreditCard} label="Payment" value={booking.paymentMethod === "razorpay" ? "Razorpay" : "Cash on Delivery"} />
+            <InfoCard compact icon={Package} label="Order ID" value={`#${String(booking._id).slice(-8)}`} />
+          </div>
+
+          <div className="mt-3 min-w-0 rounded-2xl border border-violet-100 bg-gradient-to-r from-violet-50/90 via-white to-fuchsia-50/80 p-3 dark:border-violet-900/70 dark:from-white/10 dark:via-white/5 dark:to-fuchsia-950/20">
             <div className="flex min-w-0 items-start gap-3">
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-violet-100 text-violet-700 dark:bg-violet-950/70 dark:text-violet-100">
-                <Truck className="h-5 w-5" />
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-violet-700 shadow-sm dark:bg-stone-950/70 dark:text-violet-100">
+                <Truck className="h-4 w-4" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">Delivery date & time</p>
-                <p className="mt-1 break-words text-base font-black text-ink dark:text-white">{formatDate(deliveryDate)} · {deliveryWindow}</p>
-                <p className="mt-1 break-words text-sm font-semibold text-violet-950/60 dark:text-violet-100/65">{deliveryLabel}</p>
-                {!compact && <p className="mt-3 break-words text-sm leading-6 text-violet-950/65 dark:text-violet-100/70">{booking.deliveryAddress || "Address shared"}</p>}
+                <p className="text-[11px] font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">Delivery date & time</p>
+                <p className="mt-0.5 break-words text-sm font-black text-ink dark:text-white">{deliveryLabel} · {deliveryWindow}</p>
+                <p className="mt-0.5 break-words text-xs font-semibold text-violet-950/60 dark:text-violet-100/65">{formatDate(deliveryDate)}</p>
+                {!compact && <p className="mt-2 break-words text-xs leading-5 text-violet-950/65 dark:text-violet-100/70">{booking.deliveryAddress || "Address shared"}</p>}
               </div>
             </div>
           </div>
-        </div>
 
-        {cancelledByUser && (
-          <div className="mt-4 rounded-2xl border border-red-100 bg-red-50/80 p-4 text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-100">
-            <p className="text-xs font-black uppercase tracking-wide">Cancelled by user</p>
-            <p className="mt-1 text-sm font-semibold">Reason: {booking.cancellationReason || "Not provided"}</p>
-            <p className="mt-1 text-xs font-bold opacity-80">Cancelled on {formatDateTime(booking.cancelledAt)}</p>
-          </div>
-        )}
+          {cancelledByUser && (
+            <div className="mt-3 rounded-2xl border border-red-100 bg-red-50/80 p-3 text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-100">
+              <p className="text-[11px] font-black uppercase tracking-wide">Cancelled by user</p>
+              <p className="mt-1 text-xs font-semibold">Reason: {booking.cancellationReason || "Not provided"}</p>
+              <p className="mt-1 text-xs font-bold opacity-80">Cancelled on {formatDateTime(booking.cancelledAt)}</p>
+            </div>
+          )}
 
-        {!compact && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" className="btn-primary" onClick={() => setTrackingOpen(true)}>
-              <Clock3 className="h-4 w-4" /> Track order
-            </button>
-            {canCancel && (
-              <button type="button" className="btn-secondary border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900/60 dark:text-red-200 dark:hover:bg-red-950/40" onClick={() => setCancelOpen(true)}>
-                <X className="h-4 w-4" /> Cancel Booking
+          {!compact && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" className="btn-primary" onClick={() => setTrackingOpen(true)}>
+                <Clock3 className="h-4 w-4" /> Track order
               </button>
-            )}
-            {itemHref && <Link href={itemHref} className="btn-secondary">View item</Link>}
-            <Link href="/contact" className="btn-secondary">Get support</Link>
-          </div>
-        )}
+              {canCancel && (
+                <button type="button" className="btn-secondary border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900/60 dark:text-red-200 dark:hover:bg-red-950/40" onClick={() => setCancelOpen(true)}>
+                  <X className="h-4 w-4" /> Cancel Booking
+                </button>
+              )}
+              {itemHref && <Link href={itemHref} className="btn-secondary">View item</Link>}
+              <Link href="/contact" className="btn-secondary">Get support</Link>
+            </div>
+          )}
+        </div>
       </div>
       {trackingOpen && (
         <OrderTrackingModal
@@ -528,6 +548,7 @@ function CancelBookingModal({ booking, onCancelBooking, onClose }) {
   };
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 z-[80] grid place-items-center bg-black/55 px-4 py-6 backdrop-blur-sm" role="dialog" aria-modal="true">
       <div className="w-full max-w-xl overflow-hidden rounded-[1.5rem] border border-violet-100 bg-white shadow-2xl dark:border-violet-900/70 dark:bg-stone-950">
         <div className="flex items-start justify-between gap-4 border-b border-violet-100 bg-gradient-to-r from-violet-50 via-white to-red-50 p-5 dark:border-violet-900/70 dark:from-violet-950/50 dark:via-stone-950 dark:to-red-950/30">
@@ -588,6 +609,7 @@ function CancelBookingModal({ booking, onCancelBooking, onClose }) {
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 
@@ -625,7 +647,8 @@ function OrderTrackingModal({ booking, cancelled, deliveryDate, deliveryLabel, d
   const deliveryLabels = deliveryTimeline?.labels || {};
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4 py-6 backdrop-blur-sm">
+    <ModalPortal>
+    <div className="fixed inset-0 z-[90] grid min-h-screen place-items-center bg-black/60 px-4 py-6 backdrop-blur-sm">
       <section className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[1.5rem] border border-violet-100 bg-white p-5 shadow-glow dark:border-violet-900/70 dark:bg-stone-950">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
@@ -697,6 +720,7 @@ function OrderTrackingModal({ booking, cancelled, deliveryDate, deliveryLabel, d
         )}
       </section>
     </div>
+    </ModalPortal>
   );
 }
 
@@ -1418,14 +1442,14 @@ function MetricCard({ icon: Icon, label, value, onClick }) {
   );
 }
 
-function InfoCard({ icon: Icon, label, value, valueClassName = "" }) {
+function InfoCard({ icon: Icon, label, value, valueClassName = "", compact = false }) {
   return (
-    <div className="min-w-0 overflow-hidden rounded-2xl border border-violet-100 bg-white p-4 dark:border-violet-900/70 dark:bg-stone-950/70">
-      <div className="flex min-w-0 items-center gap-3">
-        {Icon && <Icon className="h-5 w-5 shrink-0 text-meadow" />}
+    <div className={`min-w-0 overflow-hidden rounded-2xl border border-violet-100 bg-white dark:border-violet-900/70 dark:bg-stone-950/70 ${compact ? "p-3" : "p-4"}`}>
+      <div className={`flex min-w-0 items-center ${compact ? "gap-2" : "gap-3"}`}>
+        {Icon && <Icon className={`${compact ? "h-4 w-4" : "h-5 w-5"} shrink-0 text-meadow`} />}
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45">{label}</p>
-          <p className={`mt-1 max-w-full break-words text-sm font-black leading-snug ${valueClassName || "text-ink dark:text-white"}`}>{value}</p>
+          <p className={`${compact ? "text-[10px]" : "text-xs"} font-black uppercase tracking-wide text-violet-950/45 dark:text-violet-100/45`}>{label}</p>
+          <p className={`${compact ? "mt-0.5 text-xs" : "mt-1 text-sm"} max-w-full break-words font-black leading-snug ${valueClassName || "text-ink dark:text-white"}`}>{value}</p>
         </div>
       </div>
     </div>
@@ -1434,6 +1458,17 @@ function InfoCard({ icon: Icon, label, value, valueClassName = "" }) {
 
 function StatusPill({ label, className = "bg-violet-50 text-violet-700 dark:bg-violet-950/70 dark:text-violet-100" }) {
   return <span className={`inline-flex max-w-full break-words rounded-full px-3 py-1 text-xs font-black leading-snug ${className}`}>{label}</span>;
+}
+
+function ModalPortal({ children }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  
+  if (!mounted) return null;
+  return createPortal(children, document.body);
 }
 
 function formatDate(value) {
